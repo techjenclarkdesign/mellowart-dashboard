@@ -21,12 +21,12 @@ const API_BASE = "https://api.xero.com";
 const CONNECTIONS_URL = `${API_BASE}/connections`;
 
 /**
- * Xero rejects accounting-only scope sets (invalid_scope) — the OpenID Connect
- * scopes must be present. `offline_access` yields the refresh token; the
- * `accounting.*` scopes cover the invoice + contact calls we make.
+ * OpenID Connect scopes (required) + `offline_access` for the refresh token +
+ * the granular accounting scopes for the calls we make. Note: Xero retired the
+ * broad `accounting.transactions` scope — invoices now use `accounting.invoices`.
  */
 export const XERO_SCOPES =
-  "openid profile email offline_access accounting.transactions accounting.contacts";
+  "openid profile email offline_access accounting.invoices accounting.contacts";
 
 interface TokenResponse {
   access_token: string;
