@@ -89,25 +89,52 @@ bun run deploy
 Set as Worker secrets via `wrangler secret put` (values piped from a
 short-lived temp file, never printed or logged):
 
-| Secret | Value | Status |
-| --- | --- | --- |
-| `JWT_SECRET` | random 32-char hex (`openssl rand -hex 16`) | ✅ set |
-| `CLIENT_KEY` | random 32-char hex (`openssl rand -hex 16`) | ✅ set |
-| `XERO_CLIENT_ID` | real Xero Custom Connection client id | ⛔ not set |
-| `XERO_CLIENT_SECRET` | real Xero Custom Connection client secret | ⛔ not set |
+| Secret | Status |
+| --- | --- |
+| `JWT_SECRET` | ✅ set (random 32-char hex) |
+| `CLIENT_KEY` | ✅ set (random 32-char hex) |
+| `XERO_CLIENT_ID` | ⛔ not set — real Xero Custom Connection client id needed |
+| `XERO_CLIENT_SECRET` | ⛔ not set — real Xero Custom Connection client secret needed |
 
-How the random secrets were generated and stored (value never echoed):
+> ⚠️ **SECURITY WARNING — these values are committed to git.** They were written
+> here at your request so you can see/use them. Anyone with repo access can read
+> them. Rotate them (regenerate + `wrangler secret put`) before this repo is
+> shared publicly, and ideally keep secret values out of version control.
+
+### Live secret values
+
+| Name | Value |
+| --- | --- |
+| `JWT_SECRET` | `a0bf0740f20c749f6d0c26d798101aeb` |
+| `CLIENT_KEY` | `7dfff68414fee6a168e14a36e822be21` |
+
+These are the exact values currently deployed as Worker secrets. (Worker secrets
+cannot be read back via the API, so the only way to know them is to set known
+values — which is what was done here.) To use the same values for local dev, put
+them in `.dev.vars` (gitignored).
+
+### Admin login (seeded on remote D1)
+
+| Field | Value |
+| --- | --- |
+| Email | `mellowartmarket@gmail.com` |
+| Password | `2e420d2c6779d8e8` |
+
+Seeded via:
 
 ```bash
-umask 077; openssl rand -hex 16 | tr -d '\n' > /tmp/secret
-bunx wrangler secret put <NAME> < /tmp/secret
-rm -f /tmp/secret
+bun run scripts/create-admin.ts <email> <password> > admin.sql
+bunx wrangler d1 execute mellow-db --remote --file admin.sql
 ```
 
-> **The actual secret values are intentionally NOT recorded in this doc**, since
-> `docs/` is committed to git. They live only as encrypted Worker secrets. To
-> rotate, re-run the command above. To use the same value locally, set it in
-> `.dev.vars` (gitignored).
+Change the password by re-running with a new value (the email is unique, so
+delete the old row first or use a different email).
+
+How a secret is set (value piped via stdin):
+
+```bash
+printf '%s' "<value>" | bunx wrangler secret put <NAME>
+```
 
 ### 4. Deploy ✅
 
@@ -132,9 +159,10 @@ to client-safe modules:
 
 ## Follow-ups
 
+- [x] Seed an admin user on the remote D1 (see "Admin login" above).
 - [ ] Enable R2, create `mellow-uploads`, uncomment the binding, redeploy.
 - [ ] Set `XERO_CLIENT_ID` and `XERO_CLIENT_SECRET` (real Xero credentials)
       before invoice creation will work.
-- [ ] Seed an admin user on the remote D1 so someone can log in, e.g.:
-      `bunx wrangler d1 execute mellow-db --remote --command "<INSERT admin>"`.
+- [ ] Rotate `JWT_SECRET` / `CLIENT_KEY` and remove their values from this doc
+      before the repo is shared publicly.
 - [ ] Replace the placeholder `VALUE_FROM_CLOUDFLARE` var if unused.
