@@ -5,6 +5,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "mellow-cf",
+	"account_id": "a87200cfcfec8428d89e751bb7db8976",
 	"compatibility_date": "2026-06-11",
 	"main": "./workers/app.ts",
 	"vars": {
@@ -31,24 +32,7 @@
 			"binding": "BUCKET",
 			"bucket_name": "mellow-uploads"
 		}
-	],
-	"queues": {
-		"producers": [
-			{
-				"binding": "QUEUE",
-				"queue": "mellow-jobs"
-			}
-		],
-		"consumers": [
-			{
-				"queue": "mellow-jobs",
-				"max_batch_size": 10,
-				"max_batch_timeout": 5,
-				"max_retries": 5,
-				"dead_letter_queue": "mellow-jobs-dlq"
-			}
-		]
-	}
+	]
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

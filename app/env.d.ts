@@ -3,8 +3,6 @@
 // and `wrangler secret put`.
 declare namespace Cloudflare {
   interface Env {
-    /** Xero webhook signing key — `wrangler secret put XERO_WEBHOOK_KEY` */
-    XERO_WEBHOOK_KEY: string;
     /** JWT signing secret — `wrangler secret put JWT_SECRET` */
     JWT_SECRET: string;
     /** Shared secret for the public submit API — `wrangler secret put CLIENT_KEY` */

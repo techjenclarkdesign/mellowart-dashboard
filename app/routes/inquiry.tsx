@@ -33,6 +33,13 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Label } from "~/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Textarea } from "~/components/ui/textarea";
 import { requireAdmin } from "~/lib/auth.server";
@@ -41,9 +48,13 @@ import {
   type ListQuery,
   type Paginated,
 } from "~/lib/data-table";
+import { createInvoiceForSubmission } from "~/lib/jobs.server";
 import {
   approveSubmission,
+  isManualPaymentStatus,
+  MANUAL_PAYMENT_STATUSES,
   rejectSubmission,
+  setPaymentStatus,
   startInvoicing,
 } from "~/lib/payments.server";
 import {
@@ -178,12 +189,12 @@ export async function action({ request }: Route.ActionArgs) {
     case "approve": {
       const changed = await approveSubmission(env.DB, id, session.email);
       if (changed) {
-        // Enter the payment machine and create the Xero invoice asynchronously.
+        // Enter the payment machine and create the Xero invoice inline.
         await startInvoicing(env.DB, id);
-        await env.QUEUE.send({ type: "create_invoice", submissionId: id });
+        await createInvoiceForSubmission(env, id);
       }
       return changed
-        ? { ok: true, message: `${id} approved — invoice queued.` }
+        ? { ok: true, message: `${id} approved — invoice created.` }
         : { ok: false, message: `${id} is no longer pending.` };
     }
 
@@ -196,6 +207,20 @@ export async function action({ request }: Route.ActionArgs) {
       return changed
         ? { ok: true, message: `${id} rejected.` }
         : { ok: false, message: `${id} is no longer pending.` };
+    }
+
+    case "set_payment": {
+      const payment = String(form.get("payment") ?? "");
+      if (!isManualPaymentStatus(payment)) {
+        return { ok: false, message: "Unknown payment status." };
+      }
+      const changed = await setPaymentStatus(env.DB, id, payment);
+      return changed
+        ? { ok: true, message: `${id} payment set to ${PAYMENT_LABEL[payment]}.` }
+        : {
+            ok: false,
+            message: `${id} has no invoice to update.`,
+          };
     }
 
     default:
@@ -282,7 +307,7 @@ function ArtistRow({ artist }: { artist: Artist }) {
   );
 }
 
-type DialogKind = "view" | "approve" | "reject" | null;
+type DialogKind = "view" | "approve" | "reject" | "payment" | null;
 
 function RowActions({ artist }: { artist: Artist }) {
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -329,6 +354,15 @@ function RowActions({ artist }: { artist: Artist }) {
             disabled={!canReject(artist.status)}
           >
             Reject
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => setDialog("payment")}
+            disabled={
+              artist.status !== "approved" || artist.paymentStatus === "none"
+            }
+          >
+            Set payment status
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -413,6 +447,55 @@ function RowActions({ artist }: { artist: Artist }) {
               </Button>
               <Button type="submit" variant="destructive" disabled={busy}>
                 {busy ? "Rejecting…" : "Confirm reject"}
+              </Button>
+            </DialogFooter>
+          </fetcher.Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual payment status (no Xero webhook — admin reconciles by hand) */}
+      <Dialog
+        open={dialog === "payment"}
+        onOpenChange={(open) => setDialog(open ? "payment" : null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set payment status</DialogTitle>
+            <DialogDescription>
+              Manually update the payment status for{" "}
+              <span className="font-medium text-foreground">{artist.name}</span>{" "}
+              ({artist.id}). Reconcile this against the Xero dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          <fetcher.Form method="post" className="grid gap-4">
+            <input type="hidden" name="intent" value="set_payment" />
+            <input type="hidden" name="id" value={artist.id} />
+            <div className="grid gap-2">
+              <Label htmlFor={`payment-${artist.id}`}>Payment status</Label>
+              <Select name="payment" defaultValue={artist.paymentStatus}>
+                <SelectTrigger id={`payment-${artist.id}`}>
+                  <SelectValue placeholder="Select a status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MANUAL_PAYMENT_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {PAYMENT_LABEL[s]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialog(null)}
+                disabled={busy}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? "Saving…" : "Save"}
               </Button>
             </DialogFooter>
           </fetcher.Form>

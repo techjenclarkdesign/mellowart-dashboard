@@ -15,6 +15,7 @@ export default [
   layout("routes/dashboard-layout.tsx", [
     route("dashboard", "routes/dashboard.tsx"),
     route("inquiry", "routes/inquiry.tsx"),
+    route("invoice-settings", "routes/invoice-settings.tsx"),
   ]),
 
   // JSON APIs (resource routes)
@@ -23,7 +24,4 @@ export default [
   route("api/summary", "routes/api.summary.tsx"), // admin-only dashboard counts
   route("api/submit", "routes/api.submit.tsx"), // public, CLIENT_KEY-protected
   route("api/files/*", "routes/api.files.$.tsx"), // admin-only R2 image streamer
-
-  // Webhooks
-  route("webhooks/xero", "routes/webhooks.xero.tsx"),
 ] satisfies RouteConfig;

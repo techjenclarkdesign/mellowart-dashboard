@@ -109,23 +109,43 @@ export async function findByInvoiceId(
 }
 
 /**
- * → paid. Idempotent: only transitions from awaiting_payment/overdue, so a
- * duplicate webhook delivery is a no-op (returns false).
+ * Payment statuses an admin may set by hand. Without the Xero webhook, the
+ * admin reconciles payment state manually from the Xero dashboard.
  */
-export async function markInvoicePaid(
+export const MANUAL_PAYMENT_STATUSES = [
+  "awaiting_payment",
+  "paid",
+  "overdue",
+  "voided",
+] as const;
+
+export type ManualPaymentStatus = (typeof MANUAL_PAYMENT_STATUSES)[number];
+
+export function isManualPaymentStatus(v: string): v is ManualPaymentStatus {
+  return (MANUAL_PAYMENT_STATUSES as readonly string[]).includes(v);
+}
+
+/**
+ * Admin-driven payment status change by submission id. Only valid on approved
+ * submissions that have entered the payment machine (payment_status != 'none').
+ * Stamps `paid_at` on the paid transition.
+ */
+export async function setPaymentStatus(
   db: D1Database,
-  xeroInvoiceId: string,
+  id: string,
+  status: ManualPaymentStatus,
 ): Promise<boolean> {
   const res = await db
     .prepare(
       `UPDATE submissions
-         SET payment_status = 'paid',
-             paid_at = datetime('now'),
+         SET payment_status = ?,
+             paid_at = CASE WHEN ? = 'paid' THEN datetime('now') ELSE paid_at END,
              updated_at = datetime('now')
-       WHERE xero_invoice_id = ?
-         AND payment_status IN ('awaiting_payment', 'overdue')`,
+       WHERE id = ?
+         AND status = 'approved'
+         AND payment_status != 'none'`,
     )
-    .bind(xeroInvoiceId)
+    .bind(status, status, id)
     .run();
   return (res.meta.changes ?? 0) > 0;
 }

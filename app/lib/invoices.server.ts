@@ -34,6 +34,42 @@ export async function getInvoiceSettings(
   return row ?? DEFAULT_SETTINGS;
 }
 
+/** Allowed values for `line_amount_types` (Xero). */
+export const LINE_AMOUNT_TYPES = ["Exclusive", "Inclusive", "NoTax"] as const;
+
+/** Upsert the single-row invoice configuration forwarded to Xero. */
+export async function updateInvoiceSettings(
+  db: D1Database,
+  s: InvoiceSettings,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO invoice_settings
+         (id, currency, unit_amount, account_code, tax_type,
+          line_amount_types, item_description, due_days, updated_at)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(id) DO UPDATE SET
+         currency = excluded.currency,
+         unit_amount = excluded.unit_amount,
+         account_code = excluded.account_code,
+         tax_type = excluded.tax_type,
+         line_amount_types = excluded.line_amount_types,
+         item_description = excluded.item_description,
+         due_days = excluded.due_days,
+         updated_at = datetime('now')`,
+    )
+    .bind(
+      s.currency,
+      s.unitAmount,
+      s.accountCode,
+      s.taxType,
+      s.lineAmountTypes,
+      s.itemDescription,
+      s.dueDays,
+    )
+    .run();
+}
+
 export interface InvoiceRecord {
   xeroInvoiceId: string;
   submissionId: string;

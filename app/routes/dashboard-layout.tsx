@@ -19,6 +19,7 @@ import {
 const titles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/inquiry": "Inquiries",
+  "/invoice-settings": "Invoice settings",
 };
 
 export async function loader({ request }: Route.LoaderArgs) {

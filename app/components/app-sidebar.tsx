@@ -1,4 +1,10 @@
-import { Inbox, LayoutDashboard, LogOut, ShieldCheck } from "lucide-react";
+import {
+  Inbox,
+  LayoutDashboard,
+  LogOut,
+  Receipt,
+  ShieldCheck,
+} from "lucide-react";
 import { Form, Link, useLocation } from "react-router";
 
 import {
@@ -18,6 +24,7 @@ import {
 const nav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inquiries", url: "/inquiry", icon: Inbox },
+  { title: "Invoice settings", url: "/invoice-settings", icon: Receipt },
 ];
 
 export function AppSidebar({ email }: { email?: string }) {

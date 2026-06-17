@@ -1,26 +1,6 @@
-import {
-  getInvoiceRecord,
-  getInvoiceSettings,
-  reconcile,
-  saveInvoiceRecord,
-  updateInvoiceStatus,
-} from "~/lib/invoices.server";
-import {
-  attachInvoice,
-  findByInvoiceId,
-  markInvoicePaid,
-} from "~/lib/payments.server";
-import {
-  createInvoice,
-  getInvoice,
-  isInvoicePaid,
-  type XeroCreds,
-} from "~/lib/xero-client.server";
-
-/** Async work pulled off the request path via Cloudflare Queues. */
-export type Job =
-  | { type: "create_invoice"; submissionId: string }
-  | { type: "verify_payment"; invoiceId: string };
+import { getInvoiceSettings, saveInvoiceRecord } from "~/lib/invoices.server";
+import { attachInvoice } from "~/lib/payments.server";
+import { createInvoice, type XeroCreds } from "~/lib/xero-client.server";
 
 interface InvoiceSubmissionRow {
   id: string;
@@ -40,19 +20,8 @@ function isoDate(daysFromNow: number): string {
     .slice(0, 10);
 }
 
-export async function processJob(env: Env, job: Job): Promise<void> {
-  switch (job.type) {
-    case "create_invoice":
-      await handleCreateInvoice(env, job.submissionId);
-      return;
-    case "verify_payment":
-      await handleVerifyPayment(env, job.invoiceId);
-      return;
-  }
-}
-
 // approve → invoicing → (this) create Xero invoice from DB config → awaiting_payment
-async function handleCreateInvoice(
+export async function createInvoiceForSubmission(
   env: Env,
   submissionId: string,
 ): Promise<void> {
@@ -84,7 +53,7 @@ async function handleCreateInvoice(
     row.id, // idempotency key — Xero won't create a duplicate on retry
   );
 
-  // Snapshot what we created so the webhook can reconcile against it.
+  // Snapshot what we created for later reconciliation/reference.
   await saveInvoiceRecord(env.DB, {
     xeroInvoiceId: created.invoiceId,
     submissionId: row.id,
@@ -100,33 +69,4 @@ async function handleCreateInvoice(
 
   await attachInvoice(env.DB, row.id, created.invoiceId, created.onlineUrl);
   // TODO: send the approval email containing `created.onlineUrl`.
-}
-
-// Xero webhook fired → fetch the invoice, reconcile against our snapshot,
-// then flip to paid when settled.
-async function handleVerifyPayment(
-  env: Env,
-  invoiceId: string,
-): Promise<void> {
-  const submission = await findByInvoiceId(env.DB, invoiceId);
-  if (!submission) return; // not one of ours
-
-  const invoice = await getInvoice(creds(env), invoiceId);
-  if (!invoice) return;
-
-  // Verify the live invoice matches what we recorded at creation.
-  const snapshot = await getInvoiceRecord(env.DB, invoiceId);
-  if (snapshot) {
-    const issues = reconcile(snapshot, invoice);
-    if (issues.length) {
-      console.warn("Invoice mismatch vs snapshot", { invoiceId, issues });
-    }
-  }
-
-  await updateInvoiceStatus(env.DB, invoiceId, invoice.status, invoice.amountDue);
-
-  if (isInvoicePaid(invoice)) {
-    await markInvoicePaid(env.DB, invoiceId); // idempotent
-    // TODO: send the payment-confirmation email.
-  }
 }

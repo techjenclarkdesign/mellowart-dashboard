@@ -1,9 +1,7 @@
 # Copy to `.dev.vars` for local dev. Set real values in production with:
 #   wrangler secret put JWT_SECRET
-#   wrangler secret put XERO_WEBHOOK_KEY
 #   wrangler secret put CLIENT_KEY
 JWT_SECRET=""
-XERO_WEBHOOK_KEY=""
 CLIENT_KEY=""
 XERO_CLIENT_ID=""
 XERO_CLIENT_SECRET=""
