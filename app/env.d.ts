@@ -15,9 +15,9 @@ declare namespace Cloudflare {
     JWT_SECRET: string;
     /** Shared secret for the public submit API — `wrangler secret put CLIENT_KEY` */
     CLIENT_KEY: string;
-    /** Xero Custom Connection client id — `wrangler secret put XERO_CLIENT_ID` */
+    /** Xero web-app (OAuth2) client id — `wrangler secret put XERO_CLIENT_ID` */
     XERO_CLIENT_ID: string;
-    /** Xero Custom Connection client secret — `wrangler secret put XERO_CLIENT_SECRET` */
+    /** Xero web-app (OAuth2) client secret — `wrangler secret put XERO_CLIENT_SECRET` */
     XERO_CLIENT_SECRET: string;
     // Invoice currency/amount/account/tax now live in the `invoice_settings` table.
   }

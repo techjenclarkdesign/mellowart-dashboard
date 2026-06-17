@@ -24,4 +24,9 @@ export default [
   route("api/summary", "routes/api.summary.tsx"), // admin-only dashboard counts
   route("api/submit", "routes/api.submit.tsx"), // public, CLIENT_KEY-protected
   route("api/files/*", "routes/api.files.$.tsx"), // admin-only R2 image streamer
+
+  // Xero OAuth2 (web app) connect flow — admin-only resource routes
+  route("xero/authorize", "routes/xero.authorize.tsx"),
+  route("xero/callback", "routes/xero.callback.tsx"),
+  route("xero/disconnect", "routes/xero.disconnect.tsx"),
 ] satisfies RouteConfig;

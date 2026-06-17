@@ -1,6 +1,6 @@
 import { getInvoiceSettings, saveInvoiceRecord } from "~/lib/invoices.server";
 import { attachInvoice } from "~/lib/payments.server";
-import { createInvoice, type XeroCreds } from "~/lib/xero-client.server";
+import { createInvoice } from "~/lib/xero-client.server";
 
 interface InvoiceSubmissionRow {
   id: string;
@@ -8,10 +8,6 @@ interface InvoiceSubmissionRow {
   last_name: string;
   email: string;
   payment_status: string;
-}
-
-function creds(env: Env): XeroCreds {
-  return { clientId: env.XERO_CLIENT_ID, clientSecret: env.XERO_CLIENT_SECRET };
 }
 
 function isoDate(daysFromNow: number): string {
@@ -37,7 +33,7 @@ export async function createInvoiceForSubmission(
   const settings = await getInvoiceSettings(env.DB);
 
   const created = await createInvoice(
-    creds(env),
+    env,
     {
       contactName: `${row.first_name} ${row.last_name}`.trim(),
       contactEmail: row.email,

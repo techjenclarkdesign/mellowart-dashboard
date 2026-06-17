@@ -157,12 +157,40 @@ to client-safe modules:
 - `MANUAL_PAYMENT_STATUSES` / `isManualPaymentStatus` → `app/lib/status.ts`
 - `LINE_AMOUNT_TYPES` → new `app/lib/invoices.ts`
 
+## Xero connection (OAuth2 web app)
+
+Invoicing uses the **Web app / authorization-code** flow (not a Custom
+connection — that required a paid per-connection subscription the org didn't
+have). The admin authorizes once; the app stores the tokens in D1 and refreshes
+them on demand (access token ~30 min; refresh token rotates each refresh and
+expires after **60 days of inactivity**).
+
+Setup steps:
+
+1. In the Xero developer portal, **create a new app → type "Web app"** (a Custom
+   connection app can't be converted).
+2. Register these **redirect URIs** on the app:
+   - Prod: `https://mellow-cf.mellowartmarket.workers.dev/xero/callback`
+   - Local: `http://localhost:5173/xero/callback` (match your `react-router dev` port)
+3. Copy the **Client id** and generate a **Client secret**, then set them:
+   ```bash
+   printf '%s' "<client id>"     | bunx wrangler secret put XERO_CLIENT_ID
+   printf '%s' "<client secret>" | bunx wrangler secret put XERO_CLIENT_SECRET
+   ```
+   (and the same two in `.dev.vars` for local dev)
+4. Log in to the dashboard → **Invoice settings** → **Connect Xero** → approve on
+   Xero's consent screen. Status flips to "Connected · <org>".
+
+Scopes requested: `offline_access accounting.transactions accounting.contacts`.
+Token store: D1 table `xero_tokens` (migration `0004`). Routes:
+`/xero/authorize`, `/xero/callback`, `/xero/disconnect`.
+
 ## Follow-ups
 
 - [x] Seed an admin user on the remote D1 (see "Admin login" above).
+- [ ] Create the Xero **Web app**, register the redirect URIs, set
+      `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET`, then connect via the UI (above).
 - [ ] Enable R2, create `mellow-uploads`, uncomment the binding, redeploy.
-- [ ] Set `XERO_CLIENT_ID` and `XERO_CLIENT_SECRET` (real Xero credentials)
-      before invoice creation will work.
 - [ ] Rotate `JWT_SECRET` / `CLIENT_KEY` and remove their values from this doc
       before the repo is shared publicly.
 - [ ] Replace the placeholder `VALUE_FROM_CLOUDFLARE` var if unused.

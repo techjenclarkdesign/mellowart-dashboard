@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { useEffect } from "react";
-import { Form, useNavigation } from "react-router";
+import { Form, useNavigation, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 import type { Route } from "./+types/invoice-settings";
@@ -27,6 +27,7 @@ import {
   getInvoiceSettings,
   updateInvoiceSettings,
 } from "~/lib/invoices.server";
+import { getXeroTokens } from "~/lib/xero-tokens.server";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "Invoice settings · Mellow" }];
@@ -34,7 +35,17 @@ export function meta(_: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
-  return { settings: await getInvoiceSettings(env.DB) };
+  const [settings, tokens] = await Promise.all([
+    getInvoiceSettings(env.DB),
+    getXeroTokens(env.DB),
+  ]);
+  return {
+    settings,
+    xero: {
+      connected: tokens !== null,
+      tenantName: tokens?.tenantName ?? null,
+    },
+  };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -85,15 +96,32 @@ export default function InvoiceSettings({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { settings } = loaderData;
+  const { settings, xero } = loaderData;
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     if (!actionData) return;
     if (actionData.ok) toast.success(actionData.message);
     else toast.error(actionData.message);
   }, [actionData]);
+
+  // One-shot toast after returning from the Xero OAuth round-trip.
+  useEffect(() => {
+    const status = searchParams.get("xero");
+    if (!status) return;
+    if (status === "connected") toast.success("Xero connected.");
+    else if (status === "disconnected") toast.success("Xero disconnected.");
+    else if (status === "error") toast.error("Xero connection failed.");
+    setSearchParams(
+      (prev) => {
+        prev.delete("xero");
+        return prev;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,6 +133,51 @@ export default function InvoiceSettings({
           Defaults forwarded to Xero when an approved submission is invoiced.
         </p>
       </div>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle>Xero connection</CardTitle>
+          <CardDescription>
+            Invoices can only be created while connected. Authorizing opens
+            Xero's consent screen, then returns here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="text-sm">
+            {xero.connected ? (
+              <p>
+                <span className="font-medium text-foreground">Connected</span>
+                {xero.tenantName ? (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {xero.tenantName}
+                  </span>
+                ) : null}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">Not connected</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {xero.connected ? (
+              <>
+                <Button asChild variant="outline">
+                  <a href="/xero/authorize">Reconnect</a>
+                </Button>
+                <Form method="post" action="/xero/disconnect">
+                  <Button type="submit" variant="destructive">
+                    Disconnect
+                  </Button>
+                </Form>
+              </>
+            ) : (
+              <Button asChild>
+                <a href="/xero/authorize">Connect Xero</a>
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="max-w-2xl">
         <CardHeader>
