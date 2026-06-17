@@ -22,9 +22,9 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { requireAdmin } from "~/lib/auth.server";
+import { LINE_AMOUNT_TYPES } from "~/lib/invoices";
 import {
   getInvoiceSettings,
-  LINE_AMOUNT_TYPES,
   updateInvoiceSettings,
 } from "~/lib/invoices.server";
 

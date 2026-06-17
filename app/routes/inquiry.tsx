@@ -51,8 +51,6 @@ import {
 import { createInvoiceForSubmission } from "~/lib/jobs.server";
 import {
   approveSubmission,
-  isManualPaymentStatus,
-  MANUAL_PAYMENT_STATUSES,
   rejectSubmission,
   setPaymentStatus,
   startInvoicing,
@@ -61,6 +59,8 @@ import {
   canApprove,
   canReject,
   deriveStatus,
+  isManualPaymentStatus,
+  MANUAL_PAYMENT_STATUSES,
   PAYMENT_LABEL,
   type PaymentStatus,
   type ReviewStatus,

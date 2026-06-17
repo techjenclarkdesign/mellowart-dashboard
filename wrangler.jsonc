@@ -22,17 +22,15 @@
 		{
 			"binding": "DB",
 			"database_name": "mellow-db",
-			// Replace after `bunx wrangler d1 create mellow-db`. Any value works for local dev.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "454cb3aa-50c6-4a18-ad8a-013f17499dae",
 			"migrations_dir": "migrations"
 		}
-	],
-	"r2_buckets": [
-		{
-			"binding": "BUCKET",
-			"bucket_name": "mellow-uploads"
-		}
 	]
+	// R2 is not yet enabled on this account (Cloudflare API error 10042).
+	// File uploads + image streaming (the BUCKET binding) are disabled until R2
+	// is enabled in the dashboard. Re-enable by uncommenting and running
+	// `bunx wrangler r2 bucket create mellow-uploads`, then redeploy.
+	// "r2_buckets": [ { "binding": "BUCKET", "bucket_name": "mellow-uploads" } ]
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

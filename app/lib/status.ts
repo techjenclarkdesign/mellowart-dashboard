@@ -33,6 +33,24 @@ export function canReject(status: ReviewStatus): boolean {
   return status === "pending";
 }
 
+/**
+ * Payment statuses an admin may set by hand. Without the Xero webhook, the
+ * admin reconciles payment state manually from the Xero dashboard. Lives here
+ * (not in payments.server) so the client UI can import it safely.
+ */
+export const MANUAL_PAYMENT_STATUSES = [
+  "awaiting_payment",
+  "paid",
+  "overdue",
+  "voided",
+] as const;
+
+export type ManualPaymentStatus = (typeof MANUAL_PAYMENT_STATUSES)[number];
+
+export function isManualPaymentStatus(v: string): v is ManualPaymentStatus {
+  return (MANUAL_PAYMENT_STATUSES as readonly string[]).includes(v);
+}
+
 export const PAYMENT_LABEL: Record<PaymentStatus, string> = {
   none: "—",
   invoicing: "Invoicing",

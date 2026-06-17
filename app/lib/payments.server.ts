@@ -4,6 +4,8 @@
  * concurrent webhook deliveries. Each returns whether a row actually changed.
  */
 
+import type { ManualPaymentStatus } from "~/lib/status";
+
 interface InvoiceLookupRow {
   id: string;
   payment_status: string;
@@ -106,23 +108,6 @@ export async function findByInvoiceId(
     )
     .bind(xeroInvoiceId)
     .first<InvoiceLookupRow>();
-}
-
-/**
- * Payment statuses an admin may set by hand. Without the Xero webhook, the
- * admin reconciles payment state manually from the Xero dashboard.
- */
-export const MANUAL_PAYMENT_STATUSES = [
-  "awaiting_payment",
-  "paid",
-  "overdue",
-  "voided",
-] as const;
-
-export type ManualPaymentStatus = (typeof MANUAL_PAYMENT_STATUSES)[number];
-
-export function isManualPaymentStatus(v: string): v is ManualPaymentStatus {
-  return (MANUAL_PAYMENT_STATUSES as readonly string[]).includes(v);
 }
 
 /**

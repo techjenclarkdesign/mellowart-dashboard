@@ -34,9 +34,6 @@ export async function getInvoiceSettings(
   return row ?? DEFAULT_SETTINGS;
 }
 
-/** Allowed values for `line_amount_types` (Xero). */
-export const LINE_AMOUNT_TYPES = ["Exclusive", "Inclusive", "NoTax"] as const;
-
 /** Upsert the single-row invoice configuration forwarded to Xero. */
 export async function updateInvoiceSettings(
   db: D1Database,

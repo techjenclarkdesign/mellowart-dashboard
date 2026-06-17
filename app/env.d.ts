@@ -3,6 +3,14 @@
 // and `wrangler secret put`.
 declare namespace Cloudflare {
   interface Env {
+    /**
+     * R2 bucket for uploaded images. The `r2_buckets` binding in wrangler.jsonc
+     * is temporarily commented out because R2 is not yet enabled on the account
+     * (Cloudflare API error 10042). Declared here so type-checking stays green;
+     * at runtime `env.BUCKET` is undefined until R2 is enabled and the binding
+     * is restored. See docs/infra-provisioning.md.
+     */
+    BUCKET: R2Bucket;
     /** JWT signing secret — `wrangler secret put JWT_SECRET` */
     JWT_SECRET: string;
     /** Shared secret for the public submit API — `wrangler secret put CLIENT_KEY` */
