@@ -19,6 +19,10 @@ declare namespace Cloudflare {
     XERO_CLIENT_ID: string;
     /** Xero web-app (OAuth2) client secret — `wrangler secret put XERO_CLIENT_SECRET` */
     XERO_CLIENT_SECRET: string;
+    /** Google OAuth2 client id (Gmail send) — `wrangler secret put GOOGLE_CLIENT_ID` */
+    GOOGLE_CLIENT_ID: string;
+    /** Google OAuth2 client secret (Gmail send) — `wrangler secret put GOOGLE_CLIENT_SECRET` */
+    GOOGLE_CLIENT_SECRET: string;
     // Invoice currency/amount/account/tax now live in the `invoice_settings` table.
   }
 }

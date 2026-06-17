@@ -185,11 +185,44 @@ Scopes requested: `offline_access accounting.transactions accounting.contacts`.
 Token store: D1 table `xero_tokens` (migration `0004`). Routes:
 `/xero/authorize`, `/xero/callback`, `/xero/disconnect`.
 
+## Email (Gmail API, OAuth2 web app)
+
+Approval emails (with the Xero invoice link) are sent through the **Gmail API
+over HTTPS** — Workers can't do SMTP. Same authorization-code flow as Xero: the
+admin connects one Google Workspace mailbox once; tokens are stored in D1 and
+refreshed on demand. Sending is **best-effort** — a missing/failed Gmail
+connection never blocks invoice creation.
+
+Setup steps:
+
+1. In **Google Cloud Console**, create (or pick) a project.
+2. **APIs & Services → Library → enable the Gmail API.**
+3. **OAuth consent screen**: user type **Internal** (Workspace-only — no Google
+   verification needed). Add scope `https://www.googleapis.com/auth/gmail.send`.
+4. **Credentials → Create credentials → OAuth client ID → Web application.**
+   Authorized redirect URIs:
+   - Prod: `https://mellow-cf.mellowartmarket.workers.dev/google/callback`
+   - Local: `http://localhost:5173/google/callback`
+5. Copy the Client ID + secret and set them:
+   ```bash
+   printf '%s' "<client id>"     | bunx wrangler secret put GOOGLE_CLIENT_ID
+   printf '%s' "<client secret>" | bunx wrangler secret put GOOGLE_CLIENT_SECRET
+   ```
+   (and the same two in `.dev.vars` for local dev)
+6. Dashboard → **Invoice settings → Connect Gmail** → approve. The card shows
+   "Connected · <mailbox>"; that mailbox becomes the From address.
+
+Scopes: `openid email https://www.googleapis.com/auth/gmail.send`. Token store:
+D1 table `google_tokens` (migration `0005`). Routes: `/google/authorize`,
+`/google/callback`, `/google/disconnect`. Templates: `app/lib/emails.ts`.
+
 ## Follow-ups
 
 - [x] Seed an admin user on the remote D1 (see "Admin login" above).
 - [ ] Create the Xero **Web app**, register the redirect URIs, set
       `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET`, then connect via the UI (above).
+- [ ] Create the Google OAuth **Web app**, enable the Gmail API, set
+      `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, then Connect Gmail in the UI.
 - [ ] Enable R2, create `mellow-uploads`, uncomment the binding, redeploy.
 - [ ] Rotate `JWT_SECRET` / `CLIENT_KEY` and remove their values from this doc
       before the repo is shared publicly.

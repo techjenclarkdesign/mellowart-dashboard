@@ -1,3 +1,5 @@
+import { sendEmail } from "~/lib/gmail.server";
+import { approvalEmail } from "~/lib/emails";
 import { getInvoiceSettings, saveInvoiceRecord } from "~/lib/invoices.server";
 import { attachInvoice } from "~/lib/payments.server";
 import { createInvoice } from "~/lib/xero-client.server";
@@ -64,5 +66,23 @@ export async function createInvoiceForSubmission(
   });
 
   await attachInvoice(env.DB, row.id, created.invoiceId, created.onlineUrl);
-  // TODO: send the approval email containing `created.onlineUrl`.
+
+  // Best-effort approval email with the invoice link. Never let a mail failure
+  // (or a missing Gmail connection) undo the invoice — it's already created.
+  try {
+    const name = `${row.first_name} ${row.last_name}`.trim();
+    await sendEmail(
+      env,
+      approvalEmail({
+        to: row.email,
+        name,
+        reference: row.id,
+        invoiceUrl: created.onlineUrl,
+        amount: created.total ?? settings.unitAmount,
+        currency: created.currency ?? settings.currency,
+      }),
+    );
+  } catch (err) {
+    console.error("Approval email failed (invoice still created)", err);
+  }
 }

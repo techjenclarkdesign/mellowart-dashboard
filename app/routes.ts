@@ -29,4 +29,9 @@ export default [
   route("xero/authorize", "routes/xero.authorize.tsx"),
   route("xero/callback", "routes/xero.callback.tsx"),
   route("xero/disconnect", "routes/xero.disconnect.tsx"),
+
+  // Google OAuth2 (Gmail send) connect flow — admin-only resource routes
+  route("google/authorize", "routes/google.authorize.tsx"),
+  route("google/callback", "routes/google.callback.tsx"),
+  route("google/disconnect", "routes/google.disconnect.tsx"),
 ] satisfies RouteConfig;

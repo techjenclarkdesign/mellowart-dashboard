@@ -27,6 +27,7 @@ import {
   getInvoiceSettings,
   updateInvoiceSettings,
 } from "~/lib/invoices.server";
+import { getGoogleTokens } from "~/lib/google-tokens.server";
 import { getXeroTokens } from "~/lib/xero-tokens.server";
 
 export function meta(_: Route.MetaArgs) {
@@ -35,15 +36,20 @@ export function meta(_: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
-  const [settings, tokens] = await Promise.all([
+  const [settings, xeroTokens, googleTokens] = await Promise.all([
     getInvoiceSettings(env.DB),
     getXeroTokens(env.DB),
+    getGoogleTokens(env.DB),
   ]);
   return {
     settings,
     xero: {
-      connected: tokens !== null,
-      tenantName: tokens?.tenantName ?? null,
+      connected: xeroTokens !== null,
+      tenantName: xeroTokens?.tenantName ?? null,
+    },
+    google: {
+      connected: googleTokens !== null,
+      email: googleTokens?.email ?? null,
     },
   };
 }
@@ -96,7 +102,7 @@ export default function InvoiceSettings({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { settings, xero } = loaderData;
+  const { settings, xero, google } = loaderData;
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
   const [searchParams, setSearchParams] = useSearchParams();
@@ -107,16 +113,22 @@ export default function InvoiceSettings({
     else toast.error(actionData.message);
   }, [actionData]);
 
-  // One-shot toast after returning from the Xero OAuth round-trip.
+  // One-shot toast after returning from an OAuth round-trip (Xero or Google).
   useEffect(() => {
-    const status = searchParams.get("xero");
-    if (!status) return;
-    if (status === "connected") toast.success("Xero connected.");
-    else if (status === "disconnected") toast.success("Xero disconnected.");
-    else if (status === "error") toast.error("Xero connection failed.");
+    const toastFor = (label: string, status: string) => {
+      if (status === "connected") toast.success(`${label} connected.`);
+      else if (status === "disconnected") toast.success(`${label} disconnected.`);
+      else if (status === "error") toast.error(`${label} connection failed.`);
+    };
+    const xeroStatus = searchParams.get("xero");
+    const googleStatus = searchParams.get("google");
+    if (!xeroStatus && !googleStatus) return;
+    if (xeroStatus) toastFor("Xero", xeroStatus);
+    if (googleStatus) toastFor("Gmail", googleStatus);
     setSearchParams(
       (prev) => {
         prev.delete("xero");
+        prev.delete("google");
         return prev;
       },
       { replace: true },
@@ -173,6 +185,49 @@ export default function InvoiceSettings({
             ) : (
               <Button asChild>
                 <a href="/xero/authorize">Connect Xero</a>
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle>Email (Gmail)</CardTitle>
+          <CardDescription>
+            Sends approval emails (with the invoice link) from your Google
+            Workspace mailbox. Approval still works while disconnected — the
+            email is just skipped.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="text-sm">
+            {google.connected ? (
+              <p>
+                <span className="font-medium text-foreground">Connected</span>
+                {google.email ? (
+                  <span className="text-muted-foreground"> · {google.email}</span>
+                ) : null}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">Not connected</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {google.connected ? (
+              <>
+                <Button asChild variant="outline">
+                  <a href="/google/authorize">Reconnect</a>
+                </Button>
+                <Form method="post" action="/google/disconnect">
+                  <Button type="submit" variant="destructive">
+                    Disconnect
+                  </Button>
+                </Form>
+              </>
+            ) : (
+              <Button asChild>
+                <a href="/google/authorize">Connect Gmail</a>
               </Button>
             )}
           </div>
