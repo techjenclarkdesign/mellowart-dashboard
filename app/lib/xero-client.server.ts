@@ -46,7 +46,10 @@ export function buildAuthorizeUrl(
     scope: XERO_SCOPES,
     state: params.state,
   });
-  return `${AUTHORIZE_URL}?${q.toString()}`;
+  // URLSearchParams encodes spaces as "+"; Xero reads "+" literally and rejects
+  // the scope (invalid_scope). Force "%20" between scopes. (Real "+" chars are
+  // already "%2B" here, so this only touches encoded spaces.)
+  return `${AUTHORIZE_URL}?${q.toString().replace(/\+/g, "%20")}`;
 }
 
 async function postToken(env: Env, body: URLSearchParams): Promise<TokenResponse> {
