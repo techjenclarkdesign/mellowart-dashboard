@@ -54,35 +54,28 @@ All 3 migrations applied successfully:
 > Note: the admin user table is created by migrations but **no admin user was
 > seeded** on remote. Create one before logging in (see "Follow-ups").
 
-### 2. R2 bucket `mellow-uploads` ⛔ blocked
+### 2. R2 bucket `mellow-uploads` ✅ (enabled 2026-06-18)
 
-R2 is **not enabled** on this account:
-
-```
-bunx wrangler r2 bucket list
-→ ERROR 10042: Please enable R2 through the Cloudflare Dashboard.
-```
-
-**Decision (chosen by user): deploy now without R2.**
-
-- The `r2_buckets` binding in `wrangler.jsonc` was **commented out** so the
-  Worker could deploy.
-- A `BUCKET: R2Bucket` declaration was added to `app/env.d.ts` so type-checking
-  stays green. At runtime `env.BUCKET` is `undefined` until R2 is restored.
-- **Consequence:** file upload (`/api/submit` image writes) and image streaming
-  (`/api/files/*`) routes will fail at runtime until R2 is enabled.
-
-To restore R2 later:
+R2 was initially blocked (`ERROR 10042: Please enable R2 through the Cloudflare
+Dashboard`). After a payment method was added to the account, R2 became
+available and the bucket was provisioned:
 
 ```bash
-# 1. Enable R2 in the Cloudflare dashboard (Dashboard → R2 → Enable; may
-#    require adding a payment method).
-# 2. Create the bucket:
 bunx wrangler r2 bucket create mellow-uploads
-# 3. Uncomment the r2_buckets block in wrangler.jsonc.
-# 4. Redeploy:
-bun run deploy
 ```
+
+- Bucket `mellow-uploads`, Standard storage class (created 2026-06-18).
+- The `r2_buckets` binding in `wrangler.jsonc` was **uncommented** (binding
+  `BUCKET` → `mellow-uploads`).
+- The temporary `BUCKET: R2Bucket` declaration in `app/env.d.ts` was removed —
+  the type now comes from the generated `wrangler types` output for the real
+  binding.
+- Redeployed; the Worker now reports `env.BUCKET (mellow-uploads) R2 Bucket`.
+- File upload (`/api/submit` image writes) and image streaming
+  (`/api/files/*`) are now functional in production.
+
+Smoke check: `GET /login` → `200`; `GET /api/files/<x>` (unauthenticated) →
+`302` (redirect to login via `requireAdmin`).
 
 ### 3. Secrets
 
@@ -223,7 +216,7 @@ D1 table `google_tokens` (migration `0005`). Routes: `/google/authorize`,
       `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET`, then connect via the UI (above).
 - [ ] Create the Google OAuth **Web app**, enable the Gmail API, set
       `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, then Connect Gmail in the UI.
-- [ ] Enable R2, create `mellow-uploads`, uncomment the binding, redeploy.
+- [x] Enable R2, create `mellow-uploads`, uncomment the binding, redeploy.
 - [ ] Rotate `JWT_SECRET` / `CLIENT_KEY` and remove their values from this doc
       before the repo is shared publicly.
 - [ ] Replace the placeholder `VALUE_FROM_CLOUDFLARE` var if unused.
