@@ -48,7 +48,10 @@ import {
   type ListQuery,
   type Paginated,
 } from "~/lib/data-table";
-import { createInvoiceForSubmission } from "~/lib/jobs.server";
+import {
+  createInvoiceForSubmission,
+  sendRejectionEmail,
+} from "~/lib/jobs.server";
 import {
   approveSubmission,
   rejectSubmission,
@@ -204,6 +207,9 @@ export async function action({ request }: Route.ActionArgs) {
         return { ok: false, message: "A reason is required to reject." };
       }
       const changed = await rejectSubmission(env.DB, id, reason, session.email);
+      if (changed) {
+        await sendRejectionEmail(env, id, reason);
+      }
       return changed
         ? { ok: true, message: `${id} rejected.` }
         : { ok: false, message: `${id} is no longer pending.` };

@@ -1,5 +1,5 @@
 import { sendEmail } from "~/lib/gmail.server";
-import { approvalEmail } from "~/lib/emails";
+import { approvalEmail, rejectionEmail } from "~/lib/emails";
 import { getInvoiceSettings, saveInvoiceRecord } from "~/lib/invoices.server";
 import { attachInvoice } from "~/lib/payments.server";
 import { createInvoice } from "~/lib/xero-client.server";
@@ -84,5 +84,34 @@ export async function createInvoiceForSubmission(
     );
   } catch (err) {
     console.error("Approval email failed (invoice still created)", err);
+  }
+}
+
+// Best-effort rejection email with the admin's reason. Never let a mail failure
+// (or a missing Gmail connection) undo the rejection — it's already recorded.
+export async function sendRejectionEmail(
+  env: Env,
+  submissionId: string,
+  reason: string,
+): Promise<void> {
+  const row = await env.DB.prepare(
+    "SELECT id, first_name, last_name, email FROM submissions WHERE id = ?",
+  )
+    .bind(submissionId)
+    .first<{ id: string; first_name: string; last_name: string; email: string }>();
+  if (!row) return;
+
+  try {
+    await sendEmail(
+      env,
+      rejectionEmail({
+        to: row.email,
+        name: `${row.first_name} ${row.last_name}`.trim(),
+        reference: row.id,
+        reason,
+      }),
+    );
+  } catch (err) {
+    console.error("Rejection email failed (submission still rejected)", err);
   }
 }

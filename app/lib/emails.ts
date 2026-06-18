@@ -41,7 +41,7 @@ export function approvalEmail(input: {
 }): OutgoingEmail {
   const amount = money(input.amount, input.currency);
   const cta = input.invoiceUrl
-    ? `<p style="margin:0 0 20px">${button(input.invoiceUrl, "View &amp; pay invoice")}</p>`
+    ? `<p style="margin:0 0 20px">${button(input.invoiceUrl, "View & pay invoice")}</p>`
     : "";
   const html = layout(`
     <p style="margin:16px 0 12px">Hi ${escapeHtml(input.name || "there")},</p>
@@ -53,6 +53,30 @@ export function approvalEmail(input: {
   return {
     to: input.to,
     subject: `Your Mellow Art submission ${input.reference} is approved`,
+    html,
+    fromName: FROM_NAME,
+  };
+}
+
+/**
+ * Sent when a submission is rejected. Includes the reason the admin typed.
+ * NOTE: placeholder wording — to be refined later.
+ */
+export function rejectionEmail(input: {
+  to: string;
+  name: string;
+  reference: string;
+  reason: string;
+}): OutgoingEmail {
+  const html = layout(`
+    <p style="margin:16px 0 12px">Hi ${escapeHtml(input.name || "there")},</p>
+    <p style="margin:0 0 12px">Thank you for your submission (<strong>${escapeHtml(input.reference)}</strong>). After review, it has <strong>not been accepted</strong> at this time.</p>
+    <p style="margin:0 0 4px">Reason:</p>
+    <p style="margin:0 0 20px;padding:12px 14px;background:#f6f6f6;border-radius:8px;white-space:pre-wrap">${escapeHtml(input.reason)}</p>
+  `);
+  return {
+    to: input.to,
+    subject: `Your Mellow Art submission ${input.reference}`,
     html,
     fromName: FROM_NAME,
   };
