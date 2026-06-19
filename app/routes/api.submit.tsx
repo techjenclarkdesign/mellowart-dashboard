@@ -23,8 +23,19 @@ import {
  * Text fields validated with zod; files (1 profile photo + ≥3 portfolio images)
  * validated here and streamed to R2.
  */
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, X-Client-Key",
+  "Access-Control-Max-Age": "86400",
+} as const;
+
+function json(body: unknown, init?: ResponseInit) {
+  return Response.json(body, { ...init, headers: { ...CORS_HEADERS, ...init?.headers } });
+}
+
 function bad(status: number, error: string, extra?: unknown) {
-  return Response.json({ error, ...(extra ? { issues: extra } : {}) }, { status });
+  return json({ error, ...(extra ? { issues: extra } : {}) }, { status });
 }
 
 function asString(value: FormDataEntryValue | null): string {
@@ -51,6 +62,9 @@ function validateImage(file: File): string | null {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
   if (request.method !== "POST") return bad(405, "Method not allowed");
 
   const provided = request.headers.get("x-client-key");
@@ -130,7 +144,7 @@ export async function action({ request }: Route.ActionArgs) {
   ];
 
   const id = await createArtistSubmission(env.DB, env.BUCKET, parsed.data, files);
-  return Response.json({ ok: true, id }, { status: 201 });
+  return json({ ok: true, id }, { status: 201 });
 }
 
 export async function loader() {
