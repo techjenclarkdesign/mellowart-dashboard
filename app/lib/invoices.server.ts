@@ -150,14 +150,36 @@ export async function updateInvoiceStatus(
     .run();
 }
 
+export interface ReconcileOptions {
+  /**
+   * Fraction the live total may exceed the snapshot because Xero's "pass on
+   * processing fees" added a card surcharge at payment time (e.g. 0.017 for a
+   * 1.70% surcharge). A live total within `[snapshot, snapshot*(1+rate)]` (plus
+   * a 1-cent rounding epsilon) is treated as the expected surcharge, not a
+   * mismatch. Defaults to 0 — strict equality, the original behaviour.
+   */
+  surchargeRate?: number;
+}
+
 /** Compare the live Xero invoice against our snapshot. Returns mismatch reasons. */
 export function reconcile(
   snapshot: StoredInvoice,
   live: { total: number; currency: string; reference: string },
+  opts: ReconcileOptions = {},
 ): string[] {
   const issues: string[] = [];
   if (snapshot.total != null && live.total !== snapshot.total) {
-    issues.push(`total ${live.total} != snapshot ${snapshot.total}`);
+    const rate = opts.surchargeRate ?? 0;
+    // A surcharge only ever raises the total, by at most `rate` of it. Anything
+    // below the snapshot, or above the surcharge ceiling, is still a real
+    // mismatch. The 0.01 epsilon absorbs cent-rounding on the computed fee.
+    const withinSurcharge =
+      rate > 0 &&
+      live.total > snapshot.total &&
+      live.total <= snapshot.total * (1 + rate) + 0.01;
+    if (!withinSurcharge) {
+      issues.push(`total ${live.total} != snapshot ${snapshot.total}`);
+    }
   }
   if (snapshot.currency && live.currency && live.currency !== snapshot.currency) {
     issues.push(`currency ${live.currency} != snapshot ${snapshot.currency}`);
