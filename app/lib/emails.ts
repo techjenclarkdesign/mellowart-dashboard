@@ -66,7 +66,7 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
       </div>
       <div class="payment-option-body">
         <p>Pay securely online using your credit or debit card. Instant confirmation.</p>
-        <a href="${link}" class="btn">View &amp; Pay Invoice &rarr;</a>
+        <a href="${link}" class="btn">View &amp; Pay Invoice →</a>
         <p class="link-fallback">Or paste this link into your browser:<br/><a href="${link}">${link}</a></p>
       </div>
     </div>`
@@ -77,7 +77,7 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
   const confirmRow = input.confirmationFormUrl
     ? `
         <div class="confirm-step">
-          <span class="icon">&#128203;</span>
+          <span class="icon">📋</span>
           <span>Or fill in our confirmation form: <a href="${escapeHtml(input.confirmationFormUrl)}" style="color:#2C2422;">${escapeHtml(input.confirmationFormUrl)}</a></span>
         </div>`
     : "";
@@ -95,14 +95,14 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
           <tr><td>BSB</td><td>${escapeHtml(input.bankBsb!)}</td></tr>
           <tr><td>Account Number</td><td>${escapeHtml(input.bankAccountNumber!)}</td></tr>
           <tr><td>Amount</td><td>${amountStr}</td></tr>
-          <tr><td>Reference</td><td>${ref} &ndash; ${name}</td></tr>
+          <tr><td>Reference</td><td>${ref} – ${name}</td></tr>
         </table>
         <div class="warning-box">
-          &#9888;&#65039; Please use your <strong>Submission ID and full name</strong> as the payment reference so we can match your payment correctly.
+          ⚠️ Please use your <strong>Submission ID and full name</strong> as the payment reference so we can match your payment correctly.
         </div>
         <p style="font-size:13px; font-weight:600; color:#2C2422; margin-bottom:12px;">After transferring, please confirm your payment:</p>
         <div class="confirm-step">
-          <span class="icon">&#128231;</span>
+          <span class="icon">📧</span>
           <span>Email us at <a href="mailto:${CONTACT_EMAIL}" style="color:#2C2422;">${CONTACT_EMAIL}</a></span>
         </div>${confirmRow}
       </div>
@@ -114,7 +114,7 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mellow Art &mdash; Invoice Email</title>
+  <title>Mellow Art — Invoice Email</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background-color: #F5F5F0; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 15px; color: #2C2422; padding: 40px 16px; }
@@ -143,6 +143,7 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
     .payment-option-body { padding: 20px; }
     .payment-option-body p { font-size: 13px; color: #7A6E6C; line-height: 1.6; margin-bottom: 16px; }
     .btn { display: block; text-align: center; background: #2C2422; color: #FFFFFF !important; text-decoration: none; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; padding: 14px 24px; border-radius: 999px; }
+    .btn-outline { display: block; text-align: center; background: transparent; color: #2C2422 !important; text-decoration: none; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; padding: 14px 24px; border-radius: 999px; border: 1.5px solid #2C2422; }
     .link-fallback { font-size: 11px; color: #BEB5B2; text-align: center; margin-top: 10px; word-break: break-all; }
     .link-fallback a { color: #BEB5B2; }
     .bank-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
@@ -175,15 +176,15 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
   </div>
   <div class="hero">
     <div class="tag">Application Approved</div>
-    <h1>Congratulations,<br/>${name}! &#127912;</h1>
+    <h1>Congratulations,<br/>${name}! 🎨</h1>
     <p>Your application has been approved.<br/>Complete your payment to secure your spot.</p>
     <div class="submission-id">${ref}</div>
   </div>
   <div class="body">
     <p class="greeting">
       Hi ${name},<br/><br/>
-      We're so excited to have you join us at <strong>${eventName}</strong>! &#127807;
-      Your spot is almost secured &mdash; just one step left. Please complete your payment by <strong>${due}</strong> to confirm your place at the event.
+      We're so excited to have you join us at <strong>${eventName}</strong>! 🌿
+      Your spot is almost secured — just one step left. Please complete your payment by <strong>${due}</strong> to confirm your place at the event.
     </p>
     <div class="section-label">Invoice Summary</div>
     <div class="invoice-box">
@@ -197,9 +198,9 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
     ${bankOption}
     <hr class="divider" />
     <p class="closing">
-      Once your payment is received and confirmed, we'll send you a follow-up email with all the event details you need. &#127807;<br/><br/>
-      If you have any questions, don't hesitate to reach out &mdash; we're always happy to help!<br/><br/>
-      Can't wait to see you at <strong>${eventName}</strong>. &#127912;
+      Once your payment is received and confirmed, we'll send you a follow-up email with all the event details you need. 🌿<br/><br/>
+      If you have any questions, don't hesitate to reach out — we're always happy to help!<br/><br/>
+      Can't wait to see you at <strong>${eventName}</strong>. 🎨
     </p>
     <p style="font-size:14px; color:#2C2422;">
       Warm regards,<br/>
@@ -217,7 +218,7 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
       <a href="https://www.mellowart.com.au">www.mellowart.com.au</a><br/>
       ${CONTACT_EMAIL}<br/><br/>
       This is an automated message from Mellow Art Market.<br/>
-      &copy; 2026 Mellow Art Market &middot; Melbourne, Australia
+      © 2026 Mellow Art Market · Melbourne, Australia
     </p>
   </div>
 </div>
