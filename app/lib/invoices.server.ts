@@ -7,6 +7,11 @@ export interface InvoiceSettings {
   lineAmountTypes: string;
   itemDescription: string;
   dueDays: number;
+  // Manual EFT details rendered on the approval email (not from Xero).
+  bankAccountName: string | null;
+  bankBsb: string | null;
+  bankAccountNumber: string | null;
+  confirmationFormUrl: string | null;
 }
 
 const DEFAULT_SETTINGS: InvoiceSettings = {
@@ -16,6 +21,10 @@ const DEFAULT_SETTINGS: InvoiceSettings = {
   lineAmountTypes: "Inclusive", // unit amount (from the stall) is GST-inclusive
   itemDescription: "FULL TABLE FEE",
   dueDays: 14,
+  bankAccountName: "Mellow Art Market",
+  bankBsb: null,
+  bankAccountNumber: null,
+  confirmationFormUrl: null,
 };
 
 export async function getInvoiceSettings(
@@ -25,7 +34,10 @@ export async function getInvoiceSettings(
     .prepare(
       `SELECT currency, account_code AS accountCode,
               tax_type AS taxType, line_amount_types AS lineAmountTypes,
-              item_description AS itemDescription, due_days AS dueDays
+              item_description AS itemDescription, due_days AS dueDays,
+              bank_account_name AS bankAccountName, bank_bsb AS bankBsb,
+              bank_account_number AS bankAccountNumber,
+              confirmation_form_url AS confirmationFormUrl
        FROM invoice_settings WHERE id = 1`,
     )
     .first<InvoiceSettings>();
@@ -41,8 +53,10 @@ export async function updateInvoiceSettings(
     .prepare(
       `INSERT INTO invoice_settings
          (id, currency, account_code, tax_type,
-          line_amount_types, item_description, due_days, updated_at)
-       VALUES (1, ?, ?, ?, ?, ?, ?, datetime('now'))
+          line_amount_types, item_description, due_days,
+          bank_account_name, bank_bsb, bank_account_number,
+          confirmation_form_url, updated_at)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(id) DO UPDATE SET
          currency = excluded.currency,
          account_code = excluded.account_code,
@@ -50,6 +64,10 @@ export async function updateInvoiceSettings(
          line_amount_types = excluded.line_amount_types,
          item_description = excluded.item_description,
          due_days = excluded.due_days,
+         bank_account_name = excluded.bank_account_name,
+         bank_bsb = excluded.bank_bsb,
+         bank_account_number = excluded.bank_account_number,
+         confirmation_form_url = excluded.confirmation_form_url,
          updated_at = datetime('now')`,
     )
     .bind(
@@ -59,6 +77,10 @@ export async function updateInvoiceSettings(
       s.lineAmountTypes,
       s.itemDescription,
       s.dueDays,
+      s.bankAccountName,
+      s.bankBsb,
+      s.bankAccountNumber,
+      s.confirmationFormUrl,
     )
     .run();
 }

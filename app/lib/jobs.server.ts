@@ -10,6 +10,7 @@ interface InvoiceSubmissionRow {
   last_name: string;
   email: string;
   payment_status: string;
+  event_name: string | null;
   stall_tier: string | null;
   stall_amount: number | null;
   stall_currency: string | null;
@@ -21,6 +22,14 @@ function isoDate(daysFromNow: number): string {
     .slice(0, 10);
 }
 
+/** Friendly due date for the email, e.g. "15 Aug 2026". */
+function friendlyDate(daysFromNow: number): string {
+  return new Date(Date.now() + daysFromNow * 86_400_000).toLocaleDateString(
+    "en-AU",
+    { day: "numeric", month: "short", year: "numeric" },
+  );
+}
+
 // approve → invoicing → (this) create Xero invoice from DB config → awaiting_payment
 export async function createInvoiceForSubmission(
   env: Env,
@@ -28,9 +37,11 @@ export async function createInvoiceForSubmission(
 ): Promise<void> {
   const row = await env.DB.prepare(
     `SELECT s.id, s.first_name, s.last_name, s.email, s.payment_status,
+            e.name AS event_name,
             o.tier AS stall_tier, o.unit_amount AS stall_amount,
             o.currency AS stall_currency
        FROM submissions s
+       LEFT JOIN events e ON e.id = s.event_id
        LEFT JOIN stall_options o ON o.id = s.stall_option_id
       WHERE s.id = ?`,
   )
@@ -95,9 +106,15 @@ export async function createInvoiceForSubmission(
         to: row.email,
         name,
         reference: row.id,
+        eventName: row.event_name,
         invoiceUrl: created.onlineUrl,
         amount: created.total ?? unitAmount,
         currency: created.currency ?? currency,
+        dueDate: friendlyDate(settings.dueDays),
+        bankAccountName: settings.bankAccountName,
+        bankBsb: settings.bankBsb,
+        bankAccountNumber: settings.bankAccountNumber,
+        confirmationFormUrl: settings.confirmationFormUrl,
       }),
     );
   } catch (err) {

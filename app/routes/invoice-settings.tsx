@@ -64,6 +64,10 @@ export async function action({ request }: Route.ActionArgs) {
   const lineAmountTypes = String(form.get("lineAmountTypes") ?? "");
   const taxType = String(form.get("taxType") ?? "").trim();
   const dueDays = Number(form.get("dueDays"));
+  const bankAccountName = String(form.get("bankAccountName") ?? "").trim();
+  const bankBsb = String(form.get("bankBsb") ?? "").trim();
+  const bankAccountNumber = String(form.get("bankAccountNumber") ?? "").trim();
+  const confirmationFormUrl = String(form.get("confirmationFormUrl") ?? "").trim();
 
   if (currency.length !== 3) {
     return { ok: false, message: "Currency must be a 3-letter code." };
@@ -91,6 +95,10 @@ export async function action({ request }: Route.ActionArgs) {
     lineAmountTypes,
     itemDescription,
     dueDays,
+    bankAccountName: bankAccountName || null,
+    bankBsb: bankBsb || null,
+    bankAccountNumber: bankAccountNumber || null,
+    confirmationFormUrl: confirmationFormUrl || null,
   });
 
   return { ok: true, message: "Invoice settings saved." };
@@ -325,6 +333,57 @@ export default function InvoiceSettings({
                   defaultValue={settings.dueDays}
                   required
                 />
+              </div>
+            </div>
+
+            <div className="border-t pt-5">
+              <h3 className="text-sm font-medium">Bank transfer (EFT) details</h3>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Shown as the manual "pay by bank transfer" option on the approval
+                email. Leave blank to hide that option.
+              </p>
+              <div className="grid gap-5">
+                <div className="grid gap-2">
+                  <Label htmlFor="bankAccountName">Account name</Label>
+                  <Input
+                    id="bankAccountName"
+                    name="bankAccountName"
+                    defaultValue={settings.bankAccountName ?? ""}
+                    placeholder="Mellow Art Market"
+                  />
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="bankBsb">BSB</Label>
+                    <Input
+                      id="bankBsb"
+                      name="bankBsb"
+                      defaultValue={settings.bankBsb ?? ""}
+                      placeholder="e.g. 063-000"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="bankAccountNumber">Account number</Label>
+                    <Input
+                      id="bankAccountNumber"
+                      name="bankAccountNumber"
+                      defaultValue={settings.bankAccountNumber ?? ""}
+                      placeholder="e.g. 1234 5678"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="confirmationFormUrl">
+                    Payment confirmation form URL
+                  </Label>
+                  <Input
+                    id="confirmationFormUrl"
+                    name="confirmationFormUrl"
+                    type="url"
+                    defaultValue={settings.confirmationFormUrl ?? ""}
+                    placeholder="https://… (optional)"
+                  />
+                </div>
               </div>
             </div>
 
