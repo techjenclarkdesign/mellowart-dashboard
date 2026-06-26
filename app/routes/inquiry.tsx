@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Copy, MoreHorizontal } from "lucide-react";
+import { Copy, MoreHorizontal, StickyNote } from "lucide-react";
 import { Link, useFetcher, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
@@ -65,6 +65,7 @@ import {
   setPaymentStatus,
   startInvoicing,
 } from "~/lib/payments.server";
+import { setInternalNotes } from "~/lib/submissions.server";
 import {
   APPLICATION_LABEL,
   APPLICATION_STATUSES,
@@ -99,6 +100,7 @@ type Artist = {
   paymentStatus: PaymentStatus;
   invoiceUrl: string | null;
   rejectReason: string | null;
+  internalNotes: string | null;
   submittedAt: string;
 };
 
@@ -203,6 +205,14 @@ export async function action({ request }: Route.ActionArgs) {
       return changed
         ? { ok: true, message: `${id} payment set to ${PAYMENT_LABEL[payment]}.` }
         : { ok: false, message: `${id} has no invoice to update.` };
+    }
+
+    case "set_notes": {
+      const notes = String(form.get("notes") ?? "").trim();
+      const changed = await setInternalNotes(env.DB, id, notes || null);
+      return changed
+        ? { ok: true, message: `Notes saved for ${id}.` }
+        : { ok: false, message: `Could not save notes for ${id}.` };
     }
 
     default:
@@ -456,6 +466,72 @@ function PaymentStatusCell({ artist }: { artist: Artist }) {
   );
 }
 
+function NotesCell({ artist }: { artist: Artist }) {
+  const fetcher = useRowAction();
+  const [open, setOpen] = useState(false);
+  const hasNotes = (artist.internalNotes ?? "").trim().length > 0;
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8"
+        onClick={() => setOpen(true)}
+        title={hasNotes ? "Edit notes" : "Add notes"}
+      >
+        <StickyNote
+          className={cn(
+            "size-4",
+            hasNotes ? "text-primary" : "text-muted-foreground",
+          )}
+          fill={hasNotes ? "currentColor" : "none"}
+        />
+        <span className="sr-only">
+          {hasNotes ? "Edit internal notes" : "Add internal notes"}
+        </span>
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Internal notes</DialogTitle>
+            <DialogDescription>
+              Private staff notes for{" "}
+              <span className="font-medium text-foreground">{artist.name}</span>.
+              Never shown to the applicant.
+            </DialogDescription>
+          </DialogHeader>
+          <fetcher.Form
+            method="post"
+            className="grid gap-4"
+            onSubmit={() => setOpen(false)}
+          >
+            <input type="hidden" name="intent" value="set_notes" />
+            <input type="hidden" name="id" value={artist.id} />
+            <Textarea
+              name="notes"
+              rows={5}
+              defaultValue={artist.internalNotes ?? ""}
+              placeholder="e.g. Strong portfolio — follow up about table sharing."
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Save notes</Button>
+            </DialogFooter>
+          </fetcher.Form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function makeColumns(stalls: StallsByEvent): ColumnDef<Artist>[] {
   return [
     {
@@ -502,6 +578,12 @@ function makeColumns(stalls: StallsByEvent): ColumnDef<Artist>[] {
       accessorKey: "paymentStatus",
       header: "Payment",
       cell: ({ row }) => <PaymentStatusCell artist={row.original} />,
+    },
+    {
+      id: "notes",
+      header: () => <span className="sr-only">Notes</span>,
+      enableSorting: false,
+      cell: ({ row }) => <NotesCell artist={row.original} />,
     },
     {
       id: "actions",
@@ -790,6 +872,14 @@ function ViewProfileDialog({
               <Field label="Additional notes">
                 <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                   {data.additionalNotes}
+                </p>
+              </Field>
+            )}
+
+            {data.internalNotes && (
+              <Field label="Internal notes (staff only)">
+                <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                  {data.internalNotes}
                 </p>
               </Field>
             )}

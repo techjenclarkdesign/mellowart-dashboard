@@ -111,6 +111,7 @@ export interface SubmissionDetail {
   socialLink: string | null;
   customOrders: string | null;
   additionalNotes: string | null;
+  internalNotes: string | null;
   consentImages: number;
   consentPurpose: number;
   eventId: string | null;
@@ -133,7 +134,8 @@ export async function getSubmissionDetail(
       `SELECT s.id, s.first_name AS firstName, s.last_name AS lastName, s.email, s.phone,
               s.bio, s.primary_medium AS primaryMedium, s.style_category AS styleCategory,
               s.location, s.social_link AS socialLink, s.custom_orders AS customOrders,
-              s.additional_notes AS additionalNotes, s.consent_images AS consentImages,
+              s.additional_notes AS additionalNotes, s.internal_notes AS internalNotes,
+              s.consent_images AS consentImages,
               s.consent_purpose AS consentPurpose, s.event_id AS eventId, e.name AS eventName,
               s.status, s.reject_reason AS rejectReason,
               s.stall_option_id AS stallOptionId, o.tier AS stallTier,
@@ -159,4 +161,21 @@ export async function getSubmissionDetail(
     .all<SubmissionImage>();
 
   return { ...row, images: images.results ?? [] };
+}
+
+/** Set (or clear) the internal, admin-only notes on a submission. */
+export async function setInternalNotes(
+  db: D1Database,
+  id: string,
+  notes: string | null,
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      `UPDATE submissions
+         SET internal_notes = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+    .bind(notes, id)
+    .run();
+  return (res.meta.changes ?? 0) > 0;
 }

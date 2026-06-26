@@ -22,7 +22,8 @@ const LIST_CONFIG: D1ListConfig = {
     "primary_medium AS primaryMedium, style_category AS styleCategory, location, " +
     "event_id AS eventId, status, reject_reason AS rejectReason, " +
     "stall_option_id AS stallOptionId, payment_status AS paymentStatus, " +
-    "invoice_url AS invoiceUrl, created_at AS submittedAt",
+    "invoice_url AS invoiceUrl, internal_notes AS internalNotes, " +
+    "created_at AS submittedAt",
   searchColumns: ["first_name", "last_name", "email"],
   // Filter keys sent by the UI map 1:1 to these columns.
   filterColumns: ["status", "payment_status", "event_id"],
