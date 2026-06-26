@@ -18,7 +18,7 @@ decisions made along the way. Run on **2026-06-17**.
 From `wrangler.jsonc` and the app code:
 
 - **D1 database** `mellow-db` (binding `DB`) — submissions, invoice settings/records, admin users.
-- **R2 bucket** `mellow-uploads` (binding `BUCKET`) — uploaded profile/portfolio images + image streaming.
+- **R2 bucket** `mellow-uploads` (binding `BUCKET`) — uploaded portfolio + insurance documents + file streaming.
 - **Secrets**: `JWT_SECRET`, `CLIENT_KEY`, `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`.
 
 > The Cloudflare **Queue** that previously backed Xero jobs was removed earlier

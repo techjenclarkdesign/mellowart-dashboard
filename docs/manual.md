@@ -11,9 +11,11 @@ emailing applicants. No technical knowledge required.
 
 ## 1. What the platform does
 
-Artists submit their profile through your public form, choosing the **event**
-they're applying to (and, optionally, the **stall** they want). Each submission
-lands in this dashboard as **Pending**. You review it and set a decision:
+Artists submit their application through your public form (brand details, bio,
+categories, stall preferences, insurance answer, a portfolio document, and an
+optional insurance certificate). On submit they automatically get a
+**confirmation email**, and the application lands in this dashboard as
+**Pending**. You review it and set a decision:
 
 - **Accepted** → you then **assign a stall** (which sets the price) and click
   **Send invoice**: the system creates an invoice in **Xero** and emails the
@@ -27,16 +29,16 @@ defaults (currency, account code, due date, tax).
 The flow at a glance:
 
 ```
-Artist submits → Pending → Accepted → assign stall → Send invoice → Xero invoice + email → track payment
-                         → Waitlisted (on hold)
-                         → Rejected → rejection email sent
+Artist submits → confirmation email → Pending → Accepted → assign stall → Send invoice → Xero invoice + email → track payment
+                                              → Waitlisted (on hold)
+                                              → Rejected → rejection email sent
 ```
 
 > The **stall sets the price.** Each event defines its own stall options (e.g.
 > Mini / Standard / Flagship), each with its own price. The assigned stall's
-> price is what Xero charges — there is no single global table fee. If the
-> artist already picked a stall on the form, it arrives pre-assigned (you can
-> still change it before invoicing).
+> price is what Xero charges — there is no single global table fee. The artist
+> picks a **first and second stall preference** on the form (shown on their
+> profile to guide you), but you assign the actual billed stall here.
 
 ---
 
@@ -107,9 +109,11 @@ search by name/email to focus your work.
 
 ### Viewing details
 
-Click a row's actions and choose **View** to see the artist's full profile —
-bio, contact details, and their uploaded **profile photo + portfolio images**.
-(Images are private; only logged-in admins can see them.)
+Click a row's actions and choose **View profile** to see the full application —
+brand, website, Instagram, categories, bio, product description, stall
+preferences, the sharing/insurance answers, and links to their uploaded
+**portfolio document** (and **insurance certificate**, if provided). Documents
+are private; only logged-in admins can open them.
 
 ### Accepting and invoicing
 
@@ -118,8 +122,9 @@ before the invoice:
 
 1. Set the row's **Application status** to **Accepted**.
 2. In the **Stall assigned** column, pick a stall. The options are this event's
-   configured stalls, each with its price. (If the artist already chose a stall
-   on the form, it's already filled in — change it here if needed.)
+   configured stalls, each with its price. (The artist's first/second stall
+   **preferences** are on their profile to guide you — but you choose the actual
+   billed stall here.)
 3. Click **Send invoice** in the **Invoice** column. The system:
    - Creates an **invoice in Xero** for the **stall's price**, using your other
      Invoice settings (currency, account code, tax, due date).
@@ -218,12 +223,12 @@ created invoices are not changed.
 ## 6. Where the artist form sends data
 
 Artists don't use this dashboard — they fill in your public form, which sends
-their submission to the platform automatically. The form also tells the platform
-which **event** the artist is applying to, and optionally which **stall** they
-picked, so submissions arrive already scoped (and sometimes pre-assigned a
-stall). The technical details of that connection (the API) are in
-`docs/api-submit.md` (for whoever builds/maintains the form). As the admin, you
-only ever see the results in **Inquiries**.
+their application to the platform automatically. The form also tells the platform
+which **event** the artist is applying to, so applications arrive already scoped
+to that event, along with the artist's stall **preferences**. The technical
+details of that connection (the API) are in `docs/api-submit.md` (for whoever
+builds/maintains the form). As the admin, you only ever see the results in
+**Inquiries**.
 
 ---
 
