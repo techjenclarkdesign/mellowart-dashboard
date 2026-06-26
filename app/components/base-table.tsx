@@ -271,7 +271,7 @@ export function BaseTable<T>({
       </div>
 
       {/* Body */}
-      <div className={cn(query.isFetching && "opacity-70 transition-opacity")}>
+      <div>
         {mode === "table" && (
           <div className="rounded-md border">
             <Table>

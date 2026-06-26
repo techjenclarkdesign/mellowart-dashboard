@@ -10,7 +10,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Copy, Loader2, MoreHorizontal, StickyNote } from "lucide-react";
-import { Link, useFetcher, useSearchParams } from "react-router";
+import { Link, useFetcher, useFetchers, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 import type { Route } from "./+types/inquiry";
@@ -239,10 +239,40 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 
-// Shared fetcher that toasts + refreshes the table after any row mutation.
+// Shared fetcher: optimistically patches the row in the cache (so the UI
+// updates instantly and doesn't snap back), then toasts + reconciles on
+// completion. A global overlay (RowActionOverlay) shows the loading state.
 function useRowAction() {
   const fetcher = useFetcher<typeof action>();
   const queryClient = useQueryClient();
+
+  // Patch a row in every cached inquiries page right away.
+  const patchRow = useCallback(
+    (id: string, patch: Partial<Artist>) => {
+      queryClient.setQueriesData<Paginated<Artist>>(
+        { queryKey: ["inquiries"] },
+        (old) =>
+          old && Array.isArray(old.data)
+            ? {
+                ...old,
+                data: old.data.map((r) =>
+                  r.id === id ? { ...r, ...patch } : r,
+                ),
+              }
+            : old,
+      );
+    },
+    [queryClient],
+  );
+
+  const submit = useCallback(
+    (vars: Record<string, string>, patch?: Partial<Artist>) => {
+      if (patch) patchRow(vars.id, patch);
+      fetcher.submit(vars, { method: "post" });
+    },
+    [fetcher, patchRow],
+  );
+
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) return;
     if (fetcher.data.ok) {
@@ -252,9 +282,33 @@ function useRowAction() {
       queryClient.invalidateQueries({ queryKey: ["inquiry"] });
     } else {
       toast.error(fetcher.data.message);
+      // Roll the optimistic patch back to server truth.
+      queryClient.invalidateQueries({ queryKey: ["inquiries"] });
     }
   }, [fetcher.state, fetcher.data, queryClient]);
-  return fetcher;
+
+  return { fetcher, submit, patchRow };
+}
+
+/** One centered "Saving…" overlay while any row mutation is in flight. */
+function RowActionOverlay() {
+  const fetchers = useFetchers();
+  // Notes have their own in-dialog feedback, so they don't trigger the overlay.
+  const busy = fetchers.some(
+    (f) =>
+      f.state !== "idle" &&
+      f.formData != null &&
+      f.formData.get("intent") !== "set_notes",
+  );
+  if (!busy) return null;
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/50 backdrop-blur-[1px]">
+      <div className="flex items-center gap-3 rounded-xl border bg-background px-5 py-4 shadow-xl">
+        <Loader2 className="size-5 animate-spin text-primary" />
+        <span className="text-sm font-medium">Saving…</span>
+      </div>
+    </div>
+  );
 }
 
 function Pill({
@@ -277,16 +331,8 @@ function Pill({
 }
 
 function ApplicationStatusCell({ artist }: { artist: Artist }) {
-  const fetcher = useRowAction();
+  const { fetcher, submit, patchRow } = useRowAction();
   const [rejectOpen, setRejectOpen] = useState(false);
-  const busy = fetcher.state !== "idle";
-  // While a change is in flight, show the value being submitted (optimistic),
-  // so the dropdown doesn't snap back to the old status mid-request.
-  const pending =
-    busy && fetcher.formData?.get("intent") === "set_status"
-      ? (fetcher.formData.get("status") as string)
-      : null;
-  const value = pending ?? artist.status;
 
   function onChange(value: string) {
     if (value === artist.status) return;
@@ -294,27 +340,23 @@ function ApplicationStatusCell({ artist }: { artist: Artist }) {
       setRejectOpen(true);
       return;
     }
-    fetcher.submit(
+    submit(
       { intent: "set_status", id: artist.id, status: value },
-      { method: "post" },
+      { status: value as ApplicationStatus },
     );
   }
 
   return (
     <>
-      <Select value={value} onValueChange={onChange} disabled={busy}>
+      <Select value={artist.status} onValueChange={onChange}>
         <SelectTrigger
           size="sm"
-          className={cn("w-[132px] border-0", applicationToneClass(value))}
-        >
-          {busy ? (
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <Loader2 className="size-3.5 animate-spin" />
-              {APPLICATION_LABEL[value as ApplicationStatus]}
-            </span>
-          ) : (
-            <SelectValue />
+          className={cn(
+            "w-[132px] border-0",
+            applicationToneClass(artist.status),
           )}
+        >
+          <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {APPLICATION_STATUSES.map((s) => (
@@ -338,7 +380,10 @@ function ApplicationStatusCell({ artist }: { artist: Artist }) {
           <fetcher.Form
             method="post"
             className="grid gap-4"
-            onSubmit={() => setRejectOpen(false)}
+            onSubmit={() => {
+              patchRow(artist.id, { status: "rejected" });
+              setRejectOpen(false);
+            }}
           >
             <input type="hidden" name="intent" value="set_status" />
             <input type="hidden" name="id" value={artist.id} />
@@ -359,19 +404,11 @@ function ApplicationStatusCell({ artist }: { artist: Artist }) {
                 type="button"
                 variant="outline"
                 onClick={() => setRejectOpen(false)}
-                disabled={busy}
               >
                 Cancel
               </Button>
-              <Button type="submit" variant="destructive" disabled={busy}>
-                {busy ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Rejecting…
-                  </>
-                ) : (
-                  "Confirm reject"
-                )}
+              <Button type="submit" variant="destructive">
+                Confirm reject
               </Button>
             </DialogFooter>
           </fetcher.Form>
@@ -388,7 +425,7 @@ function StallCell({
   artist: Artist;
   stalls: StallsByEvent;
 }) {
-  const fetcher = useRowAction();
+  const { submit } = useRowAction();
 
   if (artist.status !== "accepted") {
     return <span className="text-sm text-muted-foreground">—</span>;
@@ -408,33 +445,26 @@ function StallCell({
     );
   }
 
-  const busy = fetcher.state !== "idle";
-  const pending =
-    busy && fetcher.formData?.get("intent") === "assign_stall"
-      ? (fetcher.formData.get("stallOptionId") as string)
-      : null;
-  const value = pending ?? artist.stallOptionId ?? "";
+  // Once an invoice exists (payment machine started), the stall is locked in.
+  const locked = artist.paymentStatus !== "none";
 
   return (
     <Select
-      value={value}
-      disabled={busy}
+      value={artist.stallOptionId ?? ""}
+      disabled={locked}
       onValueChange={(v) =>
-        fetcher.submit(
+        submit(
           { intent: "assign_stall", id: artist.id, stallOptionId: v },
-          { method: "post" },
+          { stallOptionId: v },
         )
       }
     >
-      <SelectTrigger size="sm" className="w-[168px]">
-        {busy ? (
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
-            Saving…
-          </span>
-        ) : (
-          <SelectValue placeholder="Assign stall" />
-        )}
+      <SelectTrigger
+        size="sm"
+        className="w-[168px]"
+        title={locked ? "Locked once the invoice is sent" : undefined}
+      >
+        <SelectValue placeholder="Assign stall" />
       </SelectTrigger>
       <SelectContent>
         {options.map((o) => (
@@ -448,8 +478,7 @@ function StallCell({
 }
 
 function XeroCell({ artist }: { artist: Artist }) {
-  const fetcher = useRowAction();
-  const busy = fetcher.state !== "idle";
+  const { submit } = useRowAction();
 
   // Already in the payment machine — link to the invoice if we have it.
   if (artist.paymentStatus !== "none") {
@@ -474,26 +503,22 @@ function XeroCell({ artist }: { artist: Artist }) {
   }
 
   return (
-    <fetcher.Form method="post">
-      <input type="hidden" name="intent" value="send_invoice" />
-      <input type="hidden" name="id" value={artist.id} />
-      <Button type="submit" size="sm" disabled={busy}>
-        {busy ? (
-          <>
-            <Loader2 className="size-4 animate-spin" />
-            Sending…
-          </>
-        ) : (
-          "Send invoice"
-        )}
-      </Button>
-    </fetcher.Form>
+    <Button
+      size="sm"
+      onClick={() =>
+        submit(
+          { intent: "send_invoice", id: artist.id },
+          { paymentStatus: "invoicing" },
+        )
+      }
+    >
+      Send invoice
+    </Button>
   );
 }
 
 function PaymentStatusCell({ artist }: { artist: Artist }) {
-  const fetcher = useRowAction();
-  const busy = fetcher.state !== "idle";
+  const { submit } = useRowAction();
 
   // Manual statuses are only valid once an invoice exists.
   if (artist.paymentStatus === "none" || artist.paymentStatus === "invoicing") {
@@ -504,35 +529,24 @@ function PaymentStatusCell({ artist }: { artist: Artist }) {
     );
   }
 
-  const pending =
-    busy && fetcher.formData?.get("intent") === "set_payment"
-      ? (fetcher.formData.get("payment") as PaymentStatus)
-      : null;
-  const value = pending ?? artist.paymentStatus;
-
   return (
     <Select
-      value={value}
-      disabled={busy}
+      value={artist.paymentStatus}
       onValueChange={(v) =>
-        fetcher.submit(
+        submit(
           { intent: "set_payment", id: artist.id, payment: v },
-          { method: "post" },
+          { paymentStatus: v as PaymentStatus },
         )
       }
     >
       <SelectTrigger
         size="sm"
-        className={cn("w-[168px] border-0", paymentToneClass(value))}
-      >
-        {busy ? (
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
-            {PAYMENT_LABEL[value]}
-          </span>
-        ) : (
-          <SelectValue />
+        className={cn(
+          "w-[168px] border-0",
+          paymentToneClass(artist.paymentStatus),
         )}
+      >
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {MANUAL_PAYMENT_STATUSES.map((s) => (
@@ -546,7 +560,7 @@ function PaymentStatusCell({ artist }: { artist: Artist }) {
 }
 
 function NotesCell({ artist }: { artist: Artist }) {
-  const fetcher = useRowAction();
+  const { fetcher } = useRowAction();
   const [open, setOpen] = useState(false);
   const busy = fetcher.state !== "idle";
   const hasNotes = (artist.internalNotes ?? "").trim().length > 0;
@@ -765,6 +779,7 @@ export default function Inquiry({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <RowActionOverlay />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Artist submissions
