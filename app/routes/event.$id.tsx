@@ -57,9 +57,16 @@ function parseStallForm(form: FormData): StallOptionInput | { error: string } {
   if (currency.length !== 3) {
     return { error: "Currency must be a 3-letter code." };
   }
+  const slug = String(form.get("slug") ?? "")
+    .trim()
+    .toLowerCase();
+  if (slug && !/^[a-z0-9-]+$/.test(slug)) {
+    return { error: "Slug must be lowercase letters, numbers, and dashes." };
+  }
   const sortOrder = Number(form.get("sortOrder"));
   return {
     tier,
+    slug: slug || null,
     unitAmount,
     currency,
     frontage: String(form.get("frontage") ?? "").trim() || null,
@@ -85,16 +92,24 @@ export async function action({ request, params }: Route.ActionArgs) {
   const parsed = parseStallForm(form);
   if ("error" in parsed) return { ok: false, message: parsed.error };
 
-  if (intent === "create") {
-    await createStallOption(env.DB, params.id, parsed);
-    return { ok: true, message: "Stall option added." };
-  }
-  if (intent === "update") {
-    const id = String(form.get("stallId") ?? "");
-    const ok = await updateStallOption(env.DB, id, parsed);
-    return ok
-      ? { ok: true, message: "Stall option updated." }
-      : { ok: false, message: "Could not update stall option." };
+  try {
+    if (intent === "create") {
+      await createStallOption(env.DB, params.id, parsed);
+      return { ok: true, message: "Stall option added." };
+    }
+    if (intent === "update") {
+      const id = String(form.get("stallId") ?? "");
+      const ok = await updateStallOption(env.DB, id, parsed);
+      return ok
+        ? { ok: true, message: "Stall option updated." }
+        : { ok: false, message: "Could not update stall option." };
+    }
+  } catch (err) {
+    // UNIQUE(event_id, slug) collision lands here.
+    if (String(err).includes("UNIQUE")) {
+      return { ok: false, message: "That slug is already used in this event." };
+    }
+    return { ok: false, message: "Could not save stall option." };
   }
 
   return { ok: false, message: "Unknown action." };
@@ -244,15 +259,27 @@ function StallDialog({
           <input type="hidden" name="eventId" value={eventId} />
           {editing && <input type="hidden" name="stallId" value={stall.id} />}
 
-          <div className="grid gap-2">
-            <Label htmlFor="tier">Tier</Label>
-            <Input
-              id="tier"
-              name="tier"
-              defaultValue={stall?.tier}
-              placeholder="e.g. Standard – Debut"
-              required
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="tier">Tier</Label>
+              <Input
+                id="tier"
+                name="tier"
+                defaultValue={stall?.tier}
+                placeholder="e.g. Standard – Debut"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="slug">Slug</Label>
+              <Input
+                id="slug"
+                name="slug"
+                defaultValue={stall?.slug ?? ""}
+                placeholder="standard-debut"
+                className="lowercase"
+              />
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">

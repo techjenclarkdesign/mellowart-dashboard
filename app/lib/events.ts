@@ -24,6 +24,7 @@ export interface StallOption {
   id: string;
   eventId: string;
   tier: string;
+  slug: string | null;
   unitAmount: number;
   currency: string;
   frontage: string | null;

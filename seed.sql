@@ -19,14 +19,14 @@ VALUES
 
 -- Per-event stall options (spec pricing). Summer = regular tiers, Debut = debut tiers.
 INSERT OR IGNORE INTO stall_options
-  (id, event_id, tier, unit_amount, currency, frontage, furniture, sharing, sort_order)
+  (id, event_id, tier, slug, unit_amount, currency, frontage, furniture, sharing, sort_order)
 VALUES
-  ('STL-S-MINI', 'EVT-SUMMER26', 'Mini',             250, 'AUD', '0.9m × 0.75m table', '1 chair',                         'No sharing',   0),
-  ('STL-S-STD',  'EVT-SUMMER26', 'Standard',         450, 'AUD', '2m frontage',        '1.8m × 0.75m trestle + 2 chairs', 'Max 2 brands', 1),
-  ('STL-S-FLAG', 'EVT-SUMMER26', 'Flagship',         570, 'AUD', '3m frontage',        '1.8m × 0.75m trestle + 2 chairs', 'Max 2 brands', 2),
-  ('STL-D-MINI', 'EVT-DEBUT26',  'Mini – Debut',     200, 'AUD', '0.9m × 0.75m table', '1 chair',                         'No sharing',   0),
-  ('STL-D-STD',  'EVT-DEBUT26',  'Standard – Debut', 400, 'AUD', '2m frontage',        '1.8m × 0.75m trestle + 2 chairs', 'Max 2 brands', 1),
-  ('STL-D-FLAG', 'EVT-DEBUT26',  'Flagship – Debut', 520, 'AUD', '3m frontage',        '1.8m × 0.75m trestle + 2 chairs', 'Max 2 brands', 2);
+  ('STL-S-MINI', 'EVT-SUMMER26', 'Mini',             'mini',             250, 'AUD', '0.9m × 0.75m table', '1 chair',                         'No sharing',   0),
+  ('STL-S-STD',  'EVT-SUMMER26', 'Standard',         'standard',         450, 'AUD', '2m frontage',        '1.8m × 0.75m trestle + 2 chairs', 'Max 2 brands', 1),
+  ('STL-S-FLAG', 'EVT-SUMMER26', 'Flagship',         'flagship',         570, 'AUD', '3m frontage',        '1.8m × 0.75m trestle + 2 chairs', 'Max 2 brands', 2),
+  ('STL-D-MINI', 'EVT-DEBUT26',  'Mini – Debut',     'mini-debut',       200, 'AUD', '0.9m × 0.75m table', '1 chair',                         'No sharing',   0),
+  ('STL-D-STD',  'EVT-DEBUT26',  'Standard – Debut', 'standard-debut',   400, 'AUD', '2m frontage',        '1.8m × 0.75m trestle + 2 chairs', 'Max 2 brands', 1),
+  ('STL-D-FLAG', 'EVT-DEBUT26',  'Flagship – Debut', 'flagship-debut',   520, 'AUD', '3m frontage',        '1.8m × 0.75m trestle + 2 chairs', 'Max 2 brands', 2);
 
 INSERT OR IGNORE INTO submissions
   (id, first_name, last_name, email, phone, bio, primary_medium, style_category, location,

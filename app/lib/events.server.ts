@@ -11,7 +11,7 @@ const EVENT_COLUMNS =
   "starts_at AS startsAt, ends_at AS endsAt";
 
 const STALL_COLUMNS =
-  "id, event_id AS eventId, tier, unit_amount AS unitAmount, currency, " +
+  "id, event_id AS eventId, tier, slug, unit_amount AS unitAmount, currency, " +
   "frontage, furniture, sharing, sort_order AS sortOrder";
 
 /** All events with applicant + awaiting-review counts, newest first. */
@@ -143,6 +143,7 @@ export async function getStallOption(
 
 export interface StallOptionInput {
   tier: string;
+  slug?: string | null;
   unitAmount: number;
   currency: string;
   frontage?: string | null;
@@ -160,13 +161,14 @@ export async function createStallOption(
   await db
     .prepare(
       `INSERT INTO stall_options
-         (id, event_id, tier, unit_amount, currency, frontage, furniture, sharing, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, event_id, tier, slug, unit_amount, currency, frontage, furniture, sharing, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
       eventId,
       input.tier,
+      input.slug ?? null,
       input.unitAmount,
       input.currency,
       input.frontage ?? null,
@@ -186,12 +188,13 @@ export async function updateStallOption(
   const res = await db
     .prepare(
       `UPDATE stall_options
-         SET tier = ?, unit_amount = ?, currency = ?, frontage = ?,
+         SET tier = ?, slug = ?, unit_amount = ?, currency = ?, frontage = ?,
              furniture = ?, sharing = ?, sort_order = ?, updated_at = datetime('now')
        WHERE id = ?`,
     )
     .bind(
       input.tier,
+      input.slug ?? null,
       input.unitAmount,
       input.currency,
       input.frontage ?? null,
