@@ -98,6 +98,28 @@ export async function startInvoicing(
 }
 
 /**
+ * Roll back invoicing → none when invoice creation fails, so the admin can
+ * retry "Send invoice". Guarded on `xero_invoice_id IS NULL` so a row that did
+ * get an invoice attached is never reset.
+ */
+export async function cancelInvoicing(
+  db: D1Database,
+  id: string,
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      `UPDATE submissions
+         SET payment_status = 'none', updated_at = datetime('now')
+       WHERE id = ?
+         AND payment_status = 'invoicing'
+         AND xero_invoice_id IS NULL`,
+    )
+    .bind(id)
+    .run();
+  return (res.meta.changes ?? 0) > 0;
+}
+
+/**
  * invoicing → awaiting_payment. Called once the Xero invoice exists. Stores the
  * join key used by the webhook.
  */

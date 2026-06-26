@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Copy, MoreHorizontal, StickyNote } from "lucide-react";
+import { Copy, Loader2, MoreHorizontal, StickyNote } from "lucide-react";
 import { Link, useFetcher, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
@@ -61,6 +61,7 @@ import {
 } from "~/lib/jobs.server";
 import {
   assignStall,
+  cancelInvoicing,
   setApplicationStatus,
   setPaymentStatus,
   startInvoicing,
@@ -148,7 +149,8 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (!id) return { ok: false, message: "Missing reference." };
 
-  switch (intent) {
+  try {
+    switch (intent) {
     case "set_status": {
       const status = String(form.get("status") ?? "");
       if (!isApplicationStatus(status)) {
@@ -192,7 +194,18 @@ export async function action({ request }: Route.ActionArgs) {
           message: `${id} needs to be accepted with a stall assigned first.`,
         };
       }
-      await createInvoiceForSubmission(env, id);
+      try {
+        await createInvoiceForSubmission(env, id);
+      } catch (err) {
+        // Roll the row back out of `invoicing` so the admin can retry, and
+        // surface the failure instead of leaving it silently stuck.
+        console.error("send_invoice failed", { id, err });
+        await cancelInvoicing(env.DB, id);
+        return {
+          ok: false,
+          message: `Couldn't create the Xero invoice for ${id}. Check the Xero connection and try again.`,
+        };
+      }
       return { ok: true, message: `${id} invoiced via Xero.` };
     }
 
@@ -217,6 +230,12 @@ export async function action({ request }: Route.ActionArgs) {
 
     default:
       return { ok: false, message: "Unknown action." };
+    }
+  } catch (err) {
+    // Any unexpected failure (DB, network, Xero) becomes a toast rather than
+    // a broken page or a silent no-op.
+    console.error("inquiry action failed", { intent, id, err });
+    return { ok: false, message: `Something went wrong. Please try again.` };
   }
 }
 
@@ -260,6 +279,14 @@ function Pill({
 function ApplicationStatusCell({ artist }: { artist: Artist }) {
   const fetcher = useRowAction();
   const [rejectOpen, setRejectOpen] = useState(false);
+  const busy = fetcher.state !== "idle";
+  // While a change is in flight, show the value being submitted (optimistic),
+  // so the dropdown doesn't snap back to the old status mid-request.
+  const pending =
+    busy && fetcher.formData?.get("intent") === "set_status"
+      ? (fetcher.formData.get("status") as string)
+      : null;
+  const value = pending ?? artist.status;
 
   function onChange(value: string) {
     if (value === artist.status) return;
@@ -275,12 +302,19 @@ function ApplicationStatusCell({ artist }: { artist: Artist }) {
 
   return (
     <>
-      <Select value={artist.status} onValueChange={onChange}>
+      <Select value={value} onValueChange={onChange} disabled={busy}>
         <SelectTrigger
           size="sm"
-          className={cn("w-[132px] border-0", applicationToneClass(artist.status))}
+          className={cn("w-[132px] border-0", applicationToneClass(value))}
         >
-          <SelectValue />
+          {busy ? (
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" />
+              {APPLICATION_LABEL[value as ApplicationStatus]}
+            </span>
+          ) : (
+            <SelectValue />
+          )}
         </SelectTrigger>
         <SelectContent>
           {APPLICATION_STATUSES.map((s) => (
@@ -325,11 +359,19 @@ function ApplicationStatusCell({ artist }: { artist: Artist }) {
                 type="button"
                 variant="outline"
                 onClick={() => setRejectOpen(false)}
+                disabled={busy}
               >
                 Cancel
               </Button>
-              <Button type="submit" variant="destructive">
-                Confirm reject
+              <Button type="submit" variant="destructive" disabled={busy}>
+                {busy ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Rejecting…
+                  </>
+                ) : (
+                  "Confirm reject"
+                )}
               </Button>
             </DialogFooter>
           </fetcher.Form>
@@ -366,9 +408,17 @@ function StallCell({
     );
   }
 
+  const busy = fetcher.state !== "idle";
+  const pending =
+    busy && fetcher.formData?.get("intent") === "assign_stall"
+      ? (fetcher.formData.get("stallOptionId") as string)
+      : null;
+  const value = pending ?? artist.stallOptionId ?? "";
+
   return (
     <Select
-      value={artist.stallOptionId ?? ""}
+      value={value}
+      disabled={busy}
       onValueChange={(v) =>
         fetcher.submit(
           { intent: "assign_stall", id: artist.id, stallOptionId: v },
@@ -377,7 +427,14 @@ function StallCell({
       }
     >
       <SelectTrigger size="sm" className="w-[168px]">
-        <SelectValue placeholder="Assign stall" />
+        {busy ? (
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" />
+            Saving…
+          </span>
+        ) : (
+          <SelectValue placeholder="Assign stall" />
+        )}
       </SelectTrigger>
       <SelectContent>
         {options.map((o) => (
@@ -421,7 +478,14 @@ function XeroCell({ artist }: { artist: Artist }) {
       <input type="hidden" name="intent" value="send_invoice" />
       <input type="hidden" name="id" value={artist.id} />
       <Button type="submit" size="sm" disabled={busy}>
-        {busy ? "Sending…" : "Send invoice"}
+        {busy ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Sending…
+          </>
+        ) : (
+          "Send invoice"
+        )}
       </Button>
     </fetcher.Form>
   );
@@ -429,6 +493,7 @@ function XeroCell({ artist }: { artist: Artist }) {
 
 function PaymentStatusCell({ artist }: { artist: Artist }) {
   const fetcher = useRowAction();
+  const busy = fetcher.state !== "idle";
 
   // Manual statuses are only valid once an invoice exists.
   if (artist.paymentStatus === "none" || artist.paymentStatus === "invoicing") {
@@ -439,9 +504,16 @@ function PaymentStatusCell({ artist }: { artist: Artist }) {
     );
   }
 
+  const pending =
+    busy && fetcher.formData?.get("intent") === "set_payment"
+      ? (fetcher.formData.get("payment") as PaymentStatus)
+      : null;
+  const value = pending ?? artist.paymentStatus;
+
   return (
     <Select
-      value={artist.paymentStatus}
+      value={value}
+      disabled={busy}
       onValueChange={(v) =>
         fetcher.submit(
           { intent: "set_payment", id: artist.id, payment: v },
@@ -451,9 +523,16 @@ function PaymentStatusCell({ artist }: { artist: Artist }) {
     >
       <SelectTrigger
         size="sm"
-        className={cn("w-[168px] border-0", paymentToneClass(artist.paymentStatus))}
+        className={cn("w-[168px] border-0", paymentToneClass(value))}
       >
-        <SelectValue />
+        {busy ? (
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" />
+            {PAYMENT_LABEL[value]}
+          </span>
+        ) : (
+          <SelectValue />
+        )}
       </SelectTrigger>
       <SelectContent>
         {MANUAL_PAYMENT_STATUSES.map((s) => (
@@ -469,7 +548,21 @@ function PaymentStatusCell({ artist }: { artist: Artist }) {
 function NotesCell({ artist }: { artist: Artist }) {
   const fetcher = useRowAction();
   const [open, setOpen] = useState(false);
+  const busy = fetcher.state !== "idle";
   const hasNotes = (artist.internalNotes ?? "").trim().length > 0;
+
+  // Close the dialog only after a real save cycle completes successfully —
+  // tracking the busy→idle transition so reopening doesn't auto-close on the
+  // stale `fetcher.data` from a previous save.
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (busy) {
+      wasBusy.current = true;
+    } else if (wasBusy.current) {
+      wasBusy.current = false;
+      if (fetcher.data?.ok) setOpen(false);
+    }
+  }, [busy, fetcher.data]);
 
   return (
     <>
@@ -502,11 +595,7 @@ function NotesCell({ artist }: { artist: Artist }) {
               Never shown to the applicant.
             </DialogDescription>
           </DialogHeader>
-          <fetcher.Form
-            method="post"
-            className="grid gap-4"
-            onSubmit={() => setOpen(false)}
-          >
+          <fetcher.Form method="post" className="grid gap-4">
             <input type="hidden" name="intent" value="set_notes" />
             <input type="hidden" name="id" value={artist.id} />
             <Textarea
@@ -520,10 +609,20 @@ function NotesCell({ artist }: { artist: Artist }) {
                 type="button"
                 variant="outline"
                 onClick={() => setOpen(false)}
+                disabled={busy}
               >
                 Cancel
               </Button>
-              <Button type="submit">Save notes</Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  "Save notes"
+                )}
+              </Button>
             </DialogFooter>
           </fetcher.Form>
         </DialogContent>
