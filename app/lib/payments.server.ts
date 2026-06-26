@@ -4,7 +4,7 @@
  * concurrent webhook deliveries. Each returns whether a row actually changed.
  */
 
-import type { ManualPaymentStatus } from "~/lib/status";
+import type { ApplicationStatus, ManualPaymentStatus } from "~/lib/status";
 
 interface InvoiceLookupRow {
   id: string;
@@ -12,29 +12,72 @@ interface InvoiceLookupRow {
 }
 
 /**
- * pending → approved. Decision only — does NOT auto-trigger payment. If a
- * listing fee applies, call `startInvoicing` separately (e.g. from a Workflow).
+ * Set the application decision. Reversible at any time (pending / accepted /
+ * waitlisted / rejected) — admins can always override. A reason is stored only
+ * for `rejected` and cleared otherwise.
  */
-export async function approveSubmission(
+export async function setApplicationStatus(
   db: D1Database,
   id: string,
+  status: ApplicationStatus,
   decidedBy: string,
+  reason?: string | null,
 ): Promise<boolean> {
   const res = await db
     .prepare(
       `UPDATE submissions
-         SET status = 'approved',
+         SET status = ?,
+             reject_reason = CASE WHEN ? = 'rejected' THEN ? ELSE NULL END,
              decided_by = ?,
              decided_at = datetime('now'),
              updated_at = datetime('now')
-       WHERE id = ? AND status = 'pending'`,
+       WHERE id = ?`,
     )
-    .bind(decidedBy, id)
+    .bind(status, status, reason ?? null, decidedBy, id)
     .run();
   return (res.meta.changes ?? 0) > 0;
 }
 
-/** approved + none → invoicing. Optional, explicit entry into the payment machine. */
+/**
+ * Assign (or clear, with null) the stall for an accepted submission. When
+ * assigning, the stall must belong to the submission's own event — stall
+ * options are event-scoped. Only valid while `accepted`.
+ */
+export async function assignStall(
+  db: D1Database,
+  id: string,
+  stallOptionId: string | null,
+): Promise<boolean> {
+  if (stallOptionId) {
+    const ok = await db
+      .prepare(
+        `SELECT 1
+           FROM submissions s
+           JOIN stall_options o
+             ON o.id = ? AND o.event_id = s.event_id
+          WHERE s.id = ? AND s.status = 'accepted'`,
+      )
+      .bind(stallOptionId, id)
+      .first();
+    if (!ok) return false;
+  }
+
+  const res = await db
+    .prepare(
+      `UPDATE submissions
+         SET stall_option_id = ?, updated_at = datetime('now')
+       WHERE id = ? AND status = 'accepted'`,
+    )
+    .bind(stallOptionId, id)
+    .run();
+  return (res.meta.changes ?? 0) > 0;
+}
+
+/**
+ * accepted + stall assigned + none → invoicing. Explicit entry into the payment
+ * machine, triggered by the admin's "Send Xero invoice" action. Guarding on
+ * `stall_option_id IS NOT NULL` ensures the invoice always has a price.
+ */
 export async function startInvoicing(
   db: D1Database,
   id: string,
@@ -44,38 +87,19 @@ export async function startInvoicing(
       `UPDATE submissions
          SET payment_status = 'invoicing',
              updated_at = datetime('now')
-       WHERE id = ? AND status = 'approved' AND payment_status = 'none'`,
+       WHERE id = ?
+         AND status = 'accepted'
+         AND stall_option_id IS NOT NULL
+         AND payment_status = 'none'`,
     )
     .bind(id)
     .run();
   return (res.meta.changes ?? 0) > 0;
 }
 
-/** pending → rejected (terminal). */
-export async function rejectSubmission(
-  db: D1Database,
-  id: string,
-  reason: string,
-  decidedBy: string,
-): Promise<boolean> {
-  const res = await db
-    .prepare(
-      `UPDATE submissions
-         SET status = 'rejected',
-             reject_reason = ?,
-             decided_by = ?,
-             decided_at = datetime('now'),
-             updated_at = datetime('now')
-       WHERE id = ? AND status = 'pending'`,
-    )
-    .bind(reason, decidedBy, id)
-    .run();
-  return (res.meta.changes ?? 0) > 0;
-}
-
 /**
- * invoicing → awaiting_payment. Called by the approval Workflow once the Xero
- * invoice exists. Stores the join key used by the webhook.
+ * invoicing → awaiting_payment. Called once the Xero invoice exists. Stores the
+ * join key used by the webhook.
  */
 export async function attachInvoice(
   db: D1Database,
@@ -111,7 +135,7 @@ export async function findByInvoiceId(
 }
 
 /**
- * Admin-driven payment status change by submission id. Only valid on approved
+ * Admin-driven payment status change by submission id. Only valid on accepted
  * submissions that have entered the payment machine (payment_status != 'none').
  * Stamps `paid_at` on the paid transition.
  */
@@ -127,7 +151,7 @@ export async function setPaymentStatus(
              paid_at = CASE WHEN ? = 'paid' THEN datetime('now') ELSE paid_at END,
              updated_at = datetime('now')
        WHERE id = ?
-         AND status = 'approved'
+         AND status = 'accepted'
          AND payment_status != 'none'`,
     )
     .bind(status, status, id)

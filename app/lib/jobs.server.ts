@@ -10,6 +10,9 @@ interface InvoiceSubmissionRow {
   last_name: string;
   email: string;
   payment_status: string;
+  stall_tier: string | null;
+  stall_amount: number | null;
+  stall_currency: string | null;
 }
 
 function isoDate(daysFromNow: number): string {
@@ -24,15 +27,30 @@ export async function createInvoiceForSubmission(
   submissionId: string,
 ): Promise<void> {
   const row = await env.DB.prepare(
-    "SELECT id, first_name, last_name, email, payment_status FROM submissions WHERE id = ?",
+    `SELECT s.id, s.first_name, s.last_name, s.email, s.payment_status,
+            o.tier AS stall_tier, o.unit_amount AS stall_amount,
+            o.currency AS stall_currency
+       FROM submissions s
+       LEFT JOIN stall_options o ON o.id = s.stall_option_id
+      WHERE s.id = ?`,
   )
     .bind(submissionId)
     .first<InvoiceSubmissionRow>();
 
-  // Idempotency: only invoice while in the `invoicing` state.
+  // Idempotency: only invoice while in the `invoicing` state. The assigned
+  // stall must carry a price — that's what drives the invoice amount.
   if (!row || row.payment_status !== "invoicing") return;
+  if (row.stall_amount == null) return;
 
   const settings = await getInvoiceSettings(env.DB);
+
+  // Stall option (event-scoped) sets the amount/currency; the rest of the line
+  // (account, tax, terms) still comes from invoice settings.
+  const unitAmount = row.stall_amount;
+  const currency = row.stall_currency ?? settings.currency;
+  const description = row.stall_tier
+    ? `${settings.itemDescription} — ${row.stall_tier}`
+    : settings.itemDescription;
 
   const created = await createInvoice(
     env,
@@ -40,10 +58,10 @@ export async function createInvoiceForSubmission(
       contactName: `${row.first_name} ${row.last_name}`.trim(),
       contactEmail: row.email,
       reference: row.id,
-      description: settings.itemDescription,
-      unitAmount: settings.unitAmount,
+      description,
+      unitAmount,
       accountCode: settings.accountCode,
-      currency: settings.currency,
+      currency,
       lineAmountTypes: settings.lineAmountTypes,
       taxType: settings.taxType,
       dueDate: isoDate(settings.dueDays),
@@ -56,8 +74,8 @@ export async function createInvoiceForSubmission(
     xeroInvoiceId: created.invoiceId,
     submissionId: row.id,
     invoiceNumber: created.invoiceNumber,
-    currency: created.currency ?? settings.currency,
-    unitAmount: settings.unitAmount,
+    currency: created.currency ?? currency,
+    unitAmount,
     total: created.total,
     amountDue: created.amountDue,
     status: created.status,
@@ -78,8 +96,8 @@ export async function createInvoiceForSubmission(
         name,
         reference: row.id,
         invoiceUrl: created.onlineUrl,
-        amount: created.total ?? settings.unitAmount,
-        currency: created.currency ?? settings.currency,
+        amount: created.total ?? unitAmount,
+        currency: created.currency ?? currency,
       }),
     );
   } catch (err) {

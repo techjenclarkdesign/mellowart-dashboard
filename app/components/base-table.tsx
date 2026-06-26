@@ -77,6 +77,13 @@ export interface BaseTableProps<T> {
   renderGridItem?: (row: T) => React.ReactNode;
   renderListItem?: (row: T) => React.ReactNode;
 
+  /** Filters applied on first render (e.g. event scoping from a link). */
+  initialFilters?: Record<string, string>;
+  /** Notified whenever search/sort/filter/pagination changes. */
+  onQueryChange?: (q: ListQuery) => void;
+  /** Extra controls rendered at the end of the toolbar (e.g. Copy emails). */
+  toolbarExtra?: React.ReactNode;
+
   emptyMessage?: string;
 }
 
@@ -109,6 +116,9 @@ export function BaseTable<T>({
   defaultMode,
   renderGridItem,
   renderListItem,
+  initialFilters,
+  onQueryChange,
+  toolbarExtra,
   emptyMessage = "No results.",
 }: BaseTableProps<T>) {
   const [mode, setMode] = React.useState<ViewMode>(defaultMode ?? modes[0]);
@@ -120,7 +130,7 @@ export function BaseTable<T>({
   const [searchInput, setSearchInput] = React.useState("");
   const [activeFilters, setActiveFilters] = React.useState<
     Record<string, string>
-  >({});
+  >(initialFilters ?? {});
   const search = useDebounced(searchInput);
 
   // Any change to search/filters should send us back to the first page.
@@ -137,6 +147,13 @@ export function BaseTable<T>({
       : null,
     filters: activeFilters,
   };
+
+  // Surface the live query to the parent (Copy emails, deep links, etc.).
+  const queryJson = JSON.stringify(listQuery);
+  React.useEffect(() => {
+    onQueryChange?.(JSON.parse(queryJson) as ListQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryJson]);
 
   const query = useQuery({
     queryKey: [...queryKey, listQuery],
@@ -207,6 +224,7 @@ export function BaseTable<T>({
               </SelectContent>
             </Select>
           ))}
+          {toolbarExtra}
         </div>
 
         {modes.length > 1 && (

@@ -26,6 +26,7 @@ export async function createArtistSubmission(
   bucket: R2Bucket,
   fields: ArtistFields,
   files: UploadFile[],
+  eventId: string | null = null,
 ): Promise<string> {
   const id = `ART-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
@@ -53,8 +54,8 @@ export async function createArtistSubmission(
         `INSERT INTO submissions
           (id, first_name, last_name, email, phone, bio, primary_medium,
            style_category, location, social_link, custom_orders,
-           additional_notes, consent_images, consent_purpose)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           additional_notes, consent_images, consent_purpose, event_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -71,6 +72,7 @@ export async function createArtistSubmission(
         fields.additionalNotes ?? null,
         fields.consentImages ? 1 : 0,
         fields.consentPurpose ? 1 : 0,
+        eventId,
       ),
     ...imageRows.map((r) =>
       db
@@ -108,8 +110,12 @@ export interface SubmissionDetail {
   additionalNotes: string | null;
   consentImages: number;
   consentPurpose: number;
+  eventId: string | null;
+  eventName: string | null;
   status: string;
   rejectReason: string | null;
+  stallOptionId: string | null;
+  stallTier: string | null;
   paymentStatus: string;
   submittedAt: string;
   images: SubmissionImage[];
@@ -121,13 +127,18 @@ export async function getSubmissionDetail(
 ): Promise<SubmissionDetail | null> {
   const row = await db
     .prepare(
-      `SELECT id, first_name AS firstName, last_name AS lastName, email, phone,
-              bio, primary_medium AS primaryMedium, style_category AS styleCategory,
-              location, social_link AS socialLink, custom_orders AS customOrders,
-              additional_notes AS additionalNotes, consent_images AS consentImages,
-              consent_purpose AS consentPurpose, status, reject_reason AS rejectReason,
-              payment_status AS paymentStatus, created_at AS submittedAt
-       FROM submissions WHERE id = ?`,
+      `SELECT s.id, s.first_name AS firstName, s.last_name AS lastName, s.email, s.phone,
+              s.bio, s.primary_medium AS primaryMedium, s.style_category AS styleCategory,
+              s.location, s.social_link AS socialLink, s.custom_orders AS customOrders,
+              s.additional_notes AS additionalNotes, s.consent_images AS consentImages,
+              s.consent_purpose AS consentPurpose, s.event_id AS eventId, e.name AS eventName,
+              s.status, s.reject_reason AS rejectReason,
+              s.stall_option_id AS stallOptionId, o.tier AS stallTier,
+              s.payment_status AS paymentStatus, s.created_at AS submittedAt
+       FROM submissions s
+       LEFT JOIN events e ON e.id = s.event_id
+       LEFT JOIN stall_options o ON o.id = s.stall_option_id
+       WHERE s.id = ?`,
     )
     .bind(id)
     .first<Omit<SubmissionDetail, "images">>();

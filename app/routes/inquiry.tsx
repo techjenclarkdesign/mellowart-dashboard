@@ -1,14 +1,20 @@
 import { env } from "cloudflare:workers";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
-import { useFetcher } from "react-router";
+import { Copy, MoreHorizontal } from "lucide-react";
+import { Link, useFetcher, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 import type { Route } from "./+types/inquiry";
 import { BaseTable, type FilterDef } from "~/components/base-table";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -29,7 +35,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Label } from "~/components/ui/label";
@@ -48,30 +53,37 @@ import {
   type ListQuery,
   type Paginated,
 } from "~/lib/data-table";
+import { listEventsWithCounts, listStallOptions } from "~/lib/events.server";
+import type { EventWithCounts, StallOption } from "~/lib/events";
 import {
   createInvoiceForSubmission,
   sendRejectionEmail,
 } from "~/lib/jobs.server";
 import {
-  approveSubmission,
-  rejectSubmission,
+  assignStall,
+  setApplicationStatus,
   setPaymentStatus,
   startInvoicing,
 } from "~/lib/payments.server";
 import {
-  canApprove,
-  canReject,
-  deriveStatus,
+  APPLICATION_LABEL,
+  APPLICATION_STATUSES,
+  applicationToneClass,
+  isApplicationStatus,
   isManualPaymentStatus,
   MANUAL_PAYMENT_STATUSES,
   PAYMENT_LABEL,
+  paymentToneClass,
+  type ApplicationStatus,
   type PaymentStatus,
-  type ReviewStatus,
 } from "~/lib/status";
+import { cn } from "~/lib/utils";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "Artist submissions · Mellow" }];
 }
+
+type StallsByEvent = Record<string, StallOption[]>;
 
 // List row (from /api/inquiries).
 type Artist = {
@@ -81,8 +93,11 @@ type Artist = {
   primaryMedium: string;
   styleCategory: string;
   location: string;
-  status: ReviewStatus;
+  eventId: string | null;
+  status: ApplicationStatus;
+  stallOptionId: string | null;
   paymentStatus: PaymentStatus;
+  invoiceUrl: string | null;
   rejectReason: string | null;
   submittedAt: string;
 };
@@ -99,86 +114,29 @@ type ArtistDetail = Artist & {
   lastName: string;
   phone: string;
   bio: string;
+  eventName: string | null;
+  stallTier: string | null;
   socialLink: string | null;
   customOrders: string | null;
   additionalNotes: string | null;
   images: DetailImage[];
 };
 
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAdmin(request);
+  const events = await listEventsWithCounts(env.DB);
+  const stalls: StallsByEvent = {};
+  for (const e of events) {
+    stalls[e.id] = await listStallOptions(env.DB, e.id);
+  }
+  return { events, stalls };
+}
+
 async function fetchArtists(query: ListQuery): Promise<Paginated<Artist>> {
   const res = await fetch(`/api/inquiries?${listQueryToSearchParams(query)}`);
   if (!res.ok) throw new Error("Failed to load submissions");
   return res.json();
 }
-
-function StatusBadge({
-  status,
-  paymentStatus,
-}: {
-  status: ReviewStatus;
-  paymentStatus: PaymentStatus;
-}) {
-  const { label, variant } = deriveStatus(status, paymentStatus);
-  return <Badge variant={variant}>{label}</Badge>;
-}
-
-const columns: ColumnDef<Artist>[] = [
-  {
-    accessorKey: "id",
-    header: "Reference",
-    enableSorting: false,
-    cell: ({ row }) => <span className="font-medium">{row.original.id}</span>,
-  },
-  { accessorKey: "name", header: "Name" },
-  {
-    accessorKey: "primaryMedium",
-    header: "Medium",
-    enableSorting: false,
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.primaryMedium}</span>
-    ),
-  },
-  {
-    accessorKey: "location",
-    header: "Location",
-    enableSorting: false,
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.location}</span>
-    ),
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <StatusBadge
-        status={row.original.status}
-        paymentStatus={row.original.paymentStatus}
-      />
-    ),
-  },
-  {
-    id: "actions",
-    header: () => <span className="sr-only">Actions</span>,
-    enableSorting: false,
-    cell: ({ row }) => (
-      <div className="text-right">
-        <RowActions artist={row.original} />
-      </div>
-    ),
-  },
-];
-
-const filters: FilterDef[] = [
-  {
-    id: "status",
-    label: "Status",
-    options: [
-      { label: "Pending", value: "pending" },
-      { label: "Approved", value: "approved" },
-      { label: "Rejected", value: "rejected" },
-    ],
-  },
-];
 
 export async function action({ request }: Route.ActionArgs) {
   const session = await requireAdmin(request);
@@ -189,30 +147,51 @@ export async function action({ request }: Route.ActionArgs) {
   if (!id) return { ok: false, message: "Missing reference." };
 
   switch (intent) {
-    case "approve": {
-      const changed = await approveSubmission(env.DB, id, session.email);
-      if (changed) {
-        // Enter the payment machine and create the Xero invoice inline.
-        await startInvoicing(env.DB, id);
-        await createInvoiceForSubmission(env, id);
+    case "set_status": {
+      const status = String(form.get("status") ?? "");
+      if (!isApplicationStatus(status)) {
+        return { ok: false, message: "Unknown status." };
       }
-      return changed
-        ? { ok: true, message: `${id} approved — invoice created.` }
-        : { ok: false, message: `${id} is no longer pending.` };
-    }
-
-    case "reject": {
       const reason = String(form.get("reason") ?? "").trim();
-      if (reason.length < 3) {
+      if (status === "rejected" && reason.length < 3) {
         return { ok: false, message: "A reason is required to reject." };
       }
-      const changed = await rejectSubmission(env.DB, id, reason, session.email);
-      if (changed) {
+      const changed = await setApplicationStatus(
+        env.DB,
+        id,
+        status,
+        session.email,
+        status === "rejected" ? reason : null,
+      );
+      if (changed && status === "rejected") {
         await sendRejectionEmail(env, id, reason);
       }
       return changed
-        ? { ok: true, message: `${id} rejected.` }
-        : { ok: false, message: `${id} is no longer pending.` };
+        ? { ok: true, message: `${id} set to ${APPLICATION_LABEL[status]}.` }
+        : { ok: false, message: `Could not update ${id}.` };
+    }
+
+    case "assign_stall": {
+      const stallOptionId = String(form.get("stallOptionId") ?? "").trim();
+      const changed = await assignStall(env.DB, id, stallOptionId || null);
+      return changed
+        ? { ok: true, message: `Stall updated for ${id}.` }
+        : {
+            ok: false,
+            message: `${id} must be accepted before assigning a stall.`,
+          };
+    }
+
+    case "send_invoice": {
+      const started = await startInvoicing(env.DB, id);
+      if (!started) {
+        return {
+          ok: false,
+          message: `${id} needs to be accepted with a stall assigned first.`,
+        };
+      }
+      await createInvoiceForSubmission(env, id);
+      return { ok: true, message: `${id} invoiced via Xero.` };
     }
 
     case "set_payment": {
@@ -223,10 +202,7 @@ export async function action({ request }: Route.ActionArgs) {
       const changed = await setPaymentStatus(env.DB, id, payment);
       return changed
         ? { ok: true, message: `${id} payment set to ${PAYMENT_LABEL[payment]}.` }
-        : {
-            ok: false,
-            message: `${id} has no invoice to update.`,
-          };
+        : { ok: false, message: `${id} has no invoice to update.` };
     }
 
     default:
@@ -234,7 +210,378 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 
-export default function Inquiry() {
+// Shared fetcher that toasts + refreshes the table after any row mutation.
+function useRowAction() {
+  const fetcher = useFetcher<typeof action>();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) return;
+    if (fetcher.data.ok) {
+      toast.success(fetcher.data.message);
+      queryClient.invalidateQueries({ queryKey: ["inquiries"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["inquiry"] });
+    } else {
+      toast.error(fetcher.data.message);
+    }
+  }, [fetcher.state, fetcher.data, queryClient]);
+  return fetcher;
+}
+
+function Pill({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function ApplicationStatusCell({ artist }: { artist: Artist }) {
+  const fetcher = useRowAction();
+  const [rejectOpen, setRejectOpen] = useState(false);
+
+  function onChange(value: string) {
+    if (value === artist.status) return;
+    if (value === "rejected") {
+      setRejectOpen(true);
+      return;
+    }
+    fetcher.submit(
+      { intent: "set_status", id: artist.id, status: value },
+      { method: "post" },
+    );
+  }
+
+  return (
+    <>
+      <Select value={artist.status} onValueChange={onChange}>
+        <SelectTrigger
+          size="sm"
+          className={cn("w-[132px] border-0", applicationToneClass(artist.status))}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {APPLICATION_STATUSES.map((s) => (
+            <SelectItem key={s} value={s}>
+              {APPLICATION_LABEL[s]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject submission</DialogTitle>
+            <DialogDescription>
+              Provide a reason for rejecting{" "}
+              <span className="font-medium text-foreground">{artist.name}</span>
+              . It is included in the notification email.
+            </DialogDescription>
+          </DialogHeader>
+          <fetcher.Form
+            method="post"
+            className="grid gap-4"
+            onSubmit={() => setRejectOpen(false)}
+          >
+            <input type="hidden" name="intent" value="set_status" />
+            <input type="hidden" name="id" value={artist.id} />
+            <input type="hidden" name="status" value="rejected" />
+            <div className="grid gap-2">
+              <Label htmlFor={`reason-${artist.id}`}>Reason</Label>
+              <Textarea
+                id={`reason-${artist.id}`}
+                name="reason"
+                required
+                minLength={3}
+                rows={4}
+                placeholder="e.g. Portfolio below the minimum image count"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRejectOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" variant="destructive">
+                Confirm reject
+              </Button>
+            </DialogFooter>
+          </fetcher.Form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function StallCell({
+  artist,
+  stalls,
+}: {
+  artist: Artist;
+  stalls: StallsByEvent;
+}) {
+  const fetcher = useRowAction();
+
+  if (artist.status !== "accepted") {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+
+  const options = artist.eventId ? stalls[artist.eventId] ?? [] : [];
+  if (options.length === 0) {
+    return artist.eventId ? (
+      <Link
+        to={`/events/${artist.eventId}`}
+        className="text-sm text-primary underline-offset-2 hover:underline"
+      >
+        Configure stall options
+      </Link>
+    ) : (
+      <span className="text-sm text-muted-foreground">No event</span>
+    );
+  }
+
+  return (
+    <Select
+      value={artist.stallOptionId ?? ""}
+      onValueChange={(v) =>
+        fetcher.submit(
+          { intent: "assign_stall", id: artist.id, stallOptionId: v },
+          { method: "post" },
+        )
+      }
+    >
+      <SelectTrigger size="sm" className="w-[168px]">
+        <SelectValue placeholder="Assign stall" />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.id} value={o.id}>
+            {o.tier} — ${o.unitAmount} {o.currency}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function XeroCell({ artist }: { artist: Artist }) {
+  const fetcher = useRowAction();
+  const busy = fetcher.state !== "idle";
+
+  // Already in the payment machine — link to the invoice if we have it.
+  if (artist.paymentStatus !== "none") {
+    return artist.invoiceUrl ? (
+      <a
+        href={artist.invoiceUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="text-sm text-primary underline-offset-2 hover:underline"
+      >
+        View invoice
+      </a>
+    ) : (
+      <span className="text-sm text-muted-foreground">Sent</span>
+    );
+  }
+
+  const sendable =
+    artist.status === "accepted" && artist.stallOptionId != null;
+  if (!sendable) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+
+  return (
+    <fetcher.Form method="post">
+      <input type="hidden" name="intent" value="send_invoice" />
+      <input type="hidden" name="id" value={artist.id} />
+      <Button type="submit" size="sm" disabled={busy}>
+        {busy ? "Sending…" : "Send invoice"}
+      </Button>
+    </fetcher.Form>
+  );
+}
+
+function PaymentStatusCell({ artist }: { artist: Artist }) {
+  const fetcher = useRowAction();
+
+  // Manual statuses are only valid once an invoice exists.
+  if (artist.paymentStatus === "none" || artist.paymentStatus === "invoicing") {
+    return (
+      <Pill className={paymentToneClass(artist.paymentStatus)}>
+        {PAYMENT_LABEL[artist.paymentStatus]}
+      </Pill>
+    );
+  }
+
+  return (
+    <Select
+      value={artist.paymentStatus}
+      onValueChange={(v) =>
+        fetcher.submit(
+          { intent: "set_payment", id: artist.id, payment: v },
+          { method: "post" },
+        )
+      }
+    >
+      <SelectTrigger
+        size="sm"
+        className={cn("w-[168px] border-0", paymentToneClass(artist.paymentStatus))}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {MANUAL_PAYMENT_STATUSES.map((s) => (
+          <SelectItem key={s} value={s}>
+            {PAYMENT_LABEL[s]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function makeColumns(stalls: StallsByEvent): ColumnDef<Artist>[] {
+  return [
+    {
+      accessorKey: "id",
+      header: "Reference",
+      enableSorting: false,
+      cell: ({ row }) => <span className="font-medium">{row.original.id}</span>,
+    },
+    { accessorKey: "name", header: "Name" },
+    {
+      accessorKey: "email",
+      header: "Email",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.email}</span>
+      ),
+    },
+    {
+      accessorKey: "primaryMedium",
+      header: "Medium",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.primaryMedium}</span>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Application",
+      cell: ({ row }) => <ApplicationStatusCell artist={row.original} />,
+    },
+    {
+      id: "stall",
+      header: "Stall assigned",
+      enableSorting: false,
+      cell: ({ row }) => <StallCell artist={row.original} stalls={stalls} />,
+    },
+    {
+      id: "xero",
+      header: "Invoice",
+      enableSorting: false,
+      cell: ({ row }) => <XeroCell artist={row.original} />,
+    },
+    {
+      accessorKey: "paymentStatus",
+      header: "Payment",
+      cell: ({ row }) => <PaymentStatusCell artist={row.original} />,
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <RowActions artist={row.original} />
+        </div>
+      ),
+    },
+  ];
+}
+
+export default function Inquiry({ loaderData }: Route.ComponentProps) {
+  const { events, stalls } = loaderData;
+  const [searchParams] = useSearchParams();
+  const eventParam = searchParams.get("event") ?? undefined;
+
+  const columns = useMemo(() => makeColumns(stalls), [stalls]);
+
+  const filters: FilterDef[] = useMemo(
+    () => [
+      {
+        id: "status",
+        label: "Application",
+        options: APPLICATION_STATUSES.map((s) => ({
+          label: APPLICATION_LABEL[s],
+          value: s,
+        })),
+      },
+      {
+        id: "payment_status",
+        label: "Payment",
+        options: (
+          [
+            "awaiting_payment",
+            "paid",
+            "overdue",
+            "voided",
+            "none",
+          ] as PaymentStatus[]
+        ).map((s) => ({ label: PAYMENT_LABEL[s], value: s })),
+      },
+      {
+        id: "event_id",
+        label: "Event",
+        options: events.map((e: EventWithCounts) => ({
+          label: e.name,
+          value: e.id,
+        })),
+      },
+    ],
+    [events],
+  );
+
+  // Track the live table query so Copy emails can reproduce the filtered set.
+  const queryRef = useRef<ListQuery>({ page: 1, pageSize: 10 });
+  const onQueryChange = useCallback((q: ListQuery) => {
+    queryRef.current = q;
+  }, []);
+
+  const copyEmails = useCallback(async () => {
+    const sp = listQueryToSearchParams(queryRef.current);
+    sp.set("emails", "1");
+    try {
+      const res = await fetch(`/api/inquiries?${sp}`);
+      if (!res.ok) throw new Error();
+      const { emails } = (await res.json()) as { emails: string[] };
+      if (!emails.length) {
+        toast.message("No emails match the current filters.");
+        return;
+      }
+      await navigator.clipboard.writeText(emails.join(", "));
+      toast.success(`Copied ${emails.length} email${emails.length === 1 ? "" : "s"}.`);
+    } catch {
+      toast.error("Could not copy emails.");
+    }
+  }, []);
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -242,7 +589,7 @@ export default function Inquiry() {
           Artist submissions
         </h1>
         <p className="text-sm text-muted-foreground">
-          Profiles submitted for the artists directory. Review and decide.
+          Review applications, assign stalls, and trigger Xero invoices.
         </p>
       </div>
 
@@ -254,7 +601,15 @@ export default function Inquiry() {
         searchPlaceholder="Search name or email…"
         filters={filters}
         defaultMode="table"
-        renderGridItem={(a) => <ArtistCard artist={a} />}
+        initialFilters={eventParam ? { event_id: eventParam } : undefined}
+        onQueryChange={onQueryChange}
+        toolbarExtra={
+          <Button variant="outline" size="sm" onClick={copyEmails}>
+            <Copy className="size-4" />
+            Copy emails
+          </Button>
+        }
+        renderGridItem={(a) => <ArtistCard artist={a} stalls={stalls} />}
         renderListItem={(a) => <ArtistRow artist={a} />}
         emptyMessage="No submissions match your filters."
       />
@@ -262,7 +617,26 @@ export default function Inquiry() {
   );
 }
 
-function ArtistCard({ artist }: { artist: Artist }) {
+function StatusPills({ artist }: { artist: Artist }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Pill className={applicationToneClass(artist.status)}>
+        {APPLICATION_LABEL[artist.status]}
+      </Pill>
+      <Pill className={paymentToneClass(artist.paymentStatus)}>
+        {PAYMENT_LABEL[artist.paymentStatus]}
+      </Pill>
+    </div>
+  );
+}
+
+function ArtistCard({
+  artist,
+  stalls,
+}: {
+  artist: Artist;
+  stalls: StallsByEvent;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -271,18 +645,18 @@ function ArtistCard({ artist }: { artist: Artist }) {
             <CardTitle className="text-base">{artist.name}</CardTitle>
             <p className="text-xs text-muted-foreground">{artist.id}</p>
           </div>
-          <StatusBadge
-            status={artist.status}
-            paymentStatus={artist.paymentStatus}
-          />
+          <StatusPills artist={artist} />
         </div>
       </CardHeader>
-      <CardContent className="flex items-center justify-between">
+      <CardContent className="flex items-end justify-between gap-3">
         <div className="text-sm text-muted-foreground">
           <p>{artist.primaryMedium}</p>
           <p>{artist.location}</p>
         </div>
-        <RowActions artist={artist} />
+        <div className="flex flex-col items-end gap-2">
+          <StallCell artist={artist} stalls={stalls} />
+          <RowActions artist={artist} />
+        </div>
       </CardContent>
     </Card>
   );
@@ -299,39 +673,19 @@ function ArtistRow({ artist }: { artist: Artist }) {
           </span>
         </p>
         <p className="truncate text-sm text-muted-foreground">
-          {artist.primaryMedium} · {artist.location}
+          {artist.primaryMedium} · {artist.email}
         </p>
       </div>
       <div className="flex items-center gap-3">
-        <StatusBadge
-          status={artist.status}
-          paymentStatus={artist.paymentStatus}
-        />
+        <StatusPills artist={artist} />
         <RowActions artist={artist} />
       </div>
     </div>
   );
 }
 
-type DialogKind = "view" | "approve" | "reject" | "payment" | null;
-
 function RowActions({ artist }: { artist: Artist }) {
-  const [dialog, setDialog] = useState<DialogKind>(null);
-  const fetcher = useFetcher<typeof action>();
-  const queryClient = useQueryClient();
-  const busy = fetcher.state !== "idle";
-
-  useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data) return;
-    if (fetcher.data.ok) {
-      toast.success(fetcher.data.message);
-      setDialog(null);
-      queryClient.invalidateQueries({ queryKey: ["inquiries"] });
-      queryClient.invalidateQueries({ queryKey: ["summary"] });
-    } else {
-      toast.error(fetcher.data.message);
-    }
-  }, [fetcher.state, fetcher.data, queryClient]);
+  const [viewOpen, setViewOpen] = useState(false);
 
   return (
     <>
@@ -344,169 +698,17 @@ function RowActions({ artist }: { artist: Artist }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => setDialog("view")}>
+          <DropdownMenuItem onSelect={() => setViewOpen(true)}>
             View profile
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => setDialog("approve")}
-            disabled={!canApprove(artist.status)}
-          >
-            Approve
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onSelect={() => setDialog("reject")}
-            disabled={!canReject(artist.status)}
-          >
-            Reject
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => setDialog("payment")}
-            disabled={
-              artist.status !== "approved" || artist.paymentStatus === "none"
-            }
-          >
-            Set payment status
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <ViewProfileDialog
         artist={artist}
-        open={dialog === "view"}
-        onOpenChange={(open) => setDialog(open ? "view" : null)}
+        open={viewOpen}
+        onOpenChange={setViewOpen}
       />
-
-      {/* Approve confirmation */}
-      <Dialog
-        open={dialog === "approve"}
-        onOpenChange={(open) => setDialog(open ? "approve" : null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Approve submission</DialogTitle>
-            <DialogDescription>
-              Approve{" "}
-              <span className="font-medium text-foreground">{artist.name}</span>{" "}
-              ({artist.id})? Their profile becomes eligible to go live in the
-              directory.
-            </DialogDescription>
-          </DialogHeader>
-          <fetcher.Form method="post">
-            <input type="hidden" name="intent" value="approve" />
-            <input type="hidden" name="id" value={artist.id} />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialog(null)}
-                disabled={busy}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {busy ? "Approving…" : "Confirm approve"}
-              </Button>
-            </DialogFooter>
-          </fetcher.Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject with reason */}
-      <Dialog
-        open={dialog === "reject"}
-        onOpenChange={(open) => setDialog(open ? "reject" : null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject submission</DialogTitle>
-            <DialogDescription>
-              Provide a reason for rejecting{" "}
-              <span className="font-medium text-foreground">{artist.name}</span>
-              . This may be included in the notification email.
-            </DialogDescription>
-          </DialogHeader>
-          <fetcher.Form method="post" className="grid gap-4">
-            <input type="hidden" name="intent" value="reject" />
-            <input type="hidden" name="id" value={artist.id} />
-            <div className="grid gap-2">
-              <Label htmlFor={`reason-${artist.id}`}>Reason</Label>
-              <Textarea
-                id={`reason-${artist.id}`}
-                name="reason"
-                required
-                minLength={3}
-                rows={4}
-                placeholder="e.g. Portfolio below the minimum image count"
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialog(null)}
-                disabled={busy}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="destructive" disabled={busy}>
-                {busy ? "Rejecting…" : "Confirm reject"}
-              </Button>
-            </DialogFooter>
-          </fetcher.Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Manual payment status (no Xero webhook — admin reconciles by hand) */}
-      <Dialog
-        open={dialog === "payment"}
-        onOpenChange={(open) => setDialog(open ? "payment" : null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Set payment status</DialogTitle>
-            <DialogDescription>
-              Manually update the payment status for{" "}
-              <span className="font-medium text-foreground">{artist.name}</span>{" "}
-              ({artist.id}). Reconcile this against the Xero dashboard.
-            </DialogDescription>
-          </DialogHeader>
-          <fetcher.Form method="post" className="grid gap-4">
-            <input type="hidden" name="intent" value="set_payment" />
-            <input type="hidden" name="id" value={artist.id} />
-            <div className="grid gap-2">
-              <Label htmlFor={`payment-${artist.id}`}>Payment status</Label>
-              <Select name="payment" defaultValue={artist.paymentStatus}>
-                <SelectTrigger id={`payment-${artist.id}`}>
-                  <SelectValue placeholder="Select a status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MANUAL_PAYMENT_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {PAYMENT_LABEL[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialog(null)}
-                disabled={busy}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {busy ? "Saving…" : "Save"}
-              </Button>
-            </DialogFooter>
-          </fetcher.Form>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
@@ -562,26 +764,20 @@ function ViewProfileDialog({
               ) : (
                 <div className="size-20 rounded-lg bg-muted" />
               )}
-              <StatusBadge
-                status={data.status}
-                paymentStatus={data.paymentStatus}
-              />
+              <StatusPills artist={data} />
             </div>
 
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <Detail label="Email" value={data.email} />
               <Detail label="Phone" value={data.phone} />
+              <Detail label="Event" value={data.eventName ?? "—"} />
+              <Detail label="Stall" value={data.stallTier ?? "—"} />
               <Detail label="Primary medium" value={data.primaryMedium} />
               <Detail label="Style / category" value={data.styleCategory} />
               <Detail label="Location" value={data.location} />
               <Detail label="Custom orders" value={data.customOrders ?? "—"} />
               <Detail label="Social" value={data.socialLink ?? "—"} />
-              {data.status === "approved" && (
-                <Detail
-                  label="Payment"
-                  value={PAYMENT_LABEL[data.paymentStatus]}
-                />
-              )}
+              <Detail label="Payment" value={PAYMENT_LABEL[data.paymentStatus]} />
             </dl>
 
             <Field label="Artist statement">
@@ -638,13 +834,7 @@ function Detail({ label, value }: { label: string; value?: string }) {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-1.5">
       <p className="text-sm font-medium">{label}</p>

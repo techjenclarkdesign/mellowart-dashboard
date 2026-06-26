@@ -1,14 +1,47 @@
 /**
- * Two independent state machines for a submission.
+ * Two independent state machines for a submission, surfaced to the admin as two
+ * separate, colour-coded dropdowns (NOT one compound badge).
  *
- *  Decision:  pending → approved | rejected           (admin-driven, sync)
- *  Payment:   none → invoicing → awaiting_payment → paid
- *             (+ overdue / voided)                     (Xero-driven, async)
+ *  Application:  pending → accepted | waitlisted | rejected   (admin, reversible)
+ *  Payment:      none → invoicing → awaiting_payment → paid
+ *                (+ overdue / voided)                          (Xero-driven, async)
  *
- * The UI shows a single derived badge computed from both.
+ * Stall assignment unlocks only once Application = accepted; assigning a stall is
+ * the prerequisite for sending the Xero invoice.
  */
 
-export type ReviewStatus = "pending" | "approved" | "rejected";
+// ---------- Application (decision) ----------
+
+export type ApplicationStatus =
+  | "pending"
+  | "accepted"
+  | "waitlisted"
+  | "rejected";
+
+export const APPLICATION_STATUSES: ApplicationStatus[] = [
+  "pending",
+  "accepted",
+  "waitlisted",
+  "rejected",
+];
+
+export const APPLICATION_LABEL: Record<ApplicationStatus, string> = {
+  pending: "Pending",
+  accepted: "Accepted",
+  waitlisted: "Waitlisted",
+  rejected: "Rejected",
+};
+
+export function isApplicationStatus(v: string): v is ApplicationStatus {
+  return (APPLICATION_STATUSES as string[]).includes(v);
+}
+
+/** Accepted is the gate for stall assignment + invoicing. */
+export function isAccepted(status: ApplicationStatus): boolean {
+  return status === "accepted";
+}
+
+// ---------- Payment ----------
 
 export type PaymentStatus =
   | "none"
@@ -18,25 +51,18 @@ export type PaymentStatus =
   | "overdue"
   | "voided";
 
-export const REVIEW_STATUSES: ReviewStatus[] = [
-  "pending",
-  "approved",
-  "rejected",
-];
-
-// Decision transitions are only allowed out of `pending` (idempotency guard).
-export function canApprove(status: ReviewStatus): boolean {
-  return status === "pending";
-}
-
-export function canReject(status: ReviewStatus): boolean {
-  return status === "pending";
-}
+export const PAYMENT_LABEL: Record<PaymentStatus, string> = {
+  none: "Not sent",
+  invoicing: "Invoicing",
+  awaiting_payment: "Awaiting payment",
+  paid: "Paid",
+  overdue: "Overdue",
+  voided: "Voided",
+};
 
 /**
  * Payment statuses an admin may set by hand. Without the Xero webhook, the
- * admin reconciles payment state manually from the Xero dashboard. Lives here
- * (not in payments.server) so the client UI can import it safely.
+ * admin reconciles payment state manually from the Xero dashboard.
  */
 export const MANUAL_PAYMENT_STATUSES = [
   "awaiting_payment",
@@ -51,41 +77,43 @@ export function isManualPaymentStatus(v: string): v is ManualPaymentStatus {
   return (MANUAL_PAYMENT_STATUSES as readonly string[]).includes(v);
 }
 
-export const PAYMENT_LABEL: Record<PaymentStatus, string> = {
-  none: "—",
-  invoicing: "Invoicing",
-  awaiting_payment: "Awaiting payment",
-  paid: "Paid",
-  overdue: "Overdue",
-  voided: "Voided",
+// ---------- Colour coding (per Alison's request) ----------
+//
+// Application: accepted=green, waitlisted=yellow, rejected=red, pending=grey.
+// Payment:     paid=green, awaiting=yellow, overdue=red, voided/none=grey.
+
+export type StatusTone = "grey" | "green" | "yellow" | "red";
+
+/** Soft pill classes for a given tone, light + dark. */
+export const TONE_CLASS: Record<StatusTone, string> = {
+  grey: "bg-muted text-muted-foreground",
+  green:
+    "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+  yellow:
+    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  red: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
 };
 
-export type BadgeVariant = "secondary" | "default" | "destructive" | "outline";
+export const APPLICATION_TONE: Record<ApplicationStatus, StatusTone> = {
+  pending: "grey",
+  accepted: "green",
+  waitlisted: "yellow",
+  rejected: "red",
+};
 
-export interface StatusBadge {
-  label: string;
-  variant: BadgeVariant;
+export const PAYMENT_TONE: Record<PaymentStatus, StatusTone> = {
+  none: "grey",
+  invoicing: "yellow",
+  awaiting_payment: "yellow",
+  paid: "green",
+  overdue: "red",
+  voided: "grey",
+};
+
+export function applicationToneClass(status: ApplicationStatus): string {
+  return TONE_CLASS[APPLICATION_TONE[status]];
 }
 
-// approved → badge keyed by the payment machine.
-const APPROVED_BADGE: Record<PaymentStatus, StatusBadge> = {
-  none: { label: "Approved", variant: "default" },
-  invoicing: { label: "Approved · Invoicing", variant: "outline" },
-  awaiting_payment: {
-    label: "Approved · Awaiting payment",
-    variant: "outline",
-  },
-  paid: { label: "Approved · Paid", variant: "default" },
-  overdue: { label: "Approved · Overdue", variant: "destructive" },
-  voided: { label: "Approved · Invoice voided", variant: "destructive" },
-};
-
-/** Single badge derived from both machines. */
-export function deriveStatus(
-  review: ReviewStatus,
-  payment: PaymentStatus,
-): StatusBadge {
-  if (review === "pending") return { label: "Pending", variant: "secondary" };
-  if (review === "rejected") return { label: "Rejected", variant: "destructive" };
-  return APPROVED_BADGE[payment];
+export function paymentToneClass(status: PaymentStatus): string {
+  return TONE_CLASS[PAYMENT_TONE[status]];
 }

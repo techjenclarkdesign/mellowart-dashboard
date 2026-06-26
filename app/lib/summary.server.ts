@@ -1,7 +1,8 @@
 export interface InquirySummary {
   total: number;
   pending: number;
-  approved: number;
+  accepted: number;
+  waitlisted: number;
   rejected: number;
 }
 
@@ -21,14 +22,16 @@ export async function getInquirySummary(
   const summary: InquirySummary = {
     total: 0,
     pending: 0,
-    approved: 0,
+    accepted: 0,
+    waitlisted: 0,
     rejected: 0,
   };
 
   for (const row of res.results ?? []) {
     const count = Number(row.count);
     if (row.status === "pending") summary.pending = count;
-    else if (row.status === "approved") summary.approved = count;
+    else if (row.status === "accepted") summary.accepted = count;
+    else if (row.status === "waitlisted") summary.waitlisted = count;
     else if (row.status === "rejected") summary.rejected = count;
     summary.total += count;
   }

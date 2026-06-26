@@ -15,6 +15,8 @@ export default [
   layout("routes/dashboard-layout.tsx", [
     route("dashboard", "routes/dashboard.tsx"),
     route("inquiry", "routes/inquiry.tsx"),
+    route("events", "routes/events.tsx"),
+    route("events/:id", "routes/event.$id.tsx"),
     route("invoice-settings", "routes/invoice-settings.tsx"),
   ]),
 

@@ -16,14 +16,16 @@ export function meta(_: Route.MetaArgs) {
 type Summary = {
   total: number;
   pending: number;
-  approved: number;
+  accepted: number;
+  waitlisted: number;
   rejected: number;
 };
 
 const CARDS: { key: keyof Summary; label: string; hint: string }[] = [
   { key: "total", label: "Total inquiries", hint: "All time" },
   { key: "pending", label: "Pending review", hint: "Awaiting decision" },
-  { key: "approved", label: "Approved", hint: "Accepted applicants" },
+  { key: "accepted", label: "Accepted", hint: "Accepted applicants" },
+  { key: "waitlisted", label: "Waitlisted", hint: "On the waitlist" },
   { key: "rejected", label: "Rejected", hint: "Declined applicants" },
 ];
 
@@ -48,7 +50,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {CARDS.map((c) => (
           <Card key={c.key}>
             <CardHeader>

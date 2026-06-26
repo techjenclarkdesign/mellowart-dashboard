@@ -1,44 +1,66 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  canApprove,
-  canReject,
-  deriveStatus,
-  type PaymentStatus,
+  APPLICATION_STATUSES,
+  APPLICATION_TONE,
+  applicationToneClass,
+  isAccepted,
+  isApplicationStatus,
+  isManualPaymentStatus,
+  MANUAL_PAYMENT_STATUSES,
+  PAYMENT_TONE,
+  paymentToneClass,
+  TONE_CLASS,
 } from "./status";
 
-describe("decision guards", () => {
-  it("allows approve/reject only from pending", () => {
-    expect(canApprove("pending")).toBe(true);
-    expect(canReject("pending")).toBe(true);
-    expect(canApprove("approved")).toBe(false);
-    expect(canApprove("rejected")).toBe(false);
-    expect(canReject("approved")).toBe(false);
-    expect(canReject("rejected")).toBe(false);
+describe("application status", () => {
+  it("recognises the four spec states and nothing else", () => {
+    expect(APPLICATION_STATUSES).toEqual([
+      "pending",
+      "accepted",
+      "waitlisted",
+      "rejected",
+    ]);
+    expect(isApplicationStatus("accepted")).toBe(true);
+    expect(isApplicationStatus("approved")).toBe(false);
+    expect(isApplicationStatus("nonsense")).toBe(false);
+  });
+
+  it("gates stall assignment on accepted only", () => {
+    expect(isAccepted("accepted")).toBe(true);
+    expect(isAccepted("waitlisted")).toBe(false);
+    expect(isAccepted("pending")).toBe(false);
   });
 });
 
-describe("deriveStatus", () => {
-  it("ignores payment when pending or rejected", () => {
-    expect(deriveStatus("pending", "none").label).toBe("Pending");
-    expect(deriveStatus("rejected", "none").variant).toBe("destructive");
+describe("colour coding (per Alison's request)", () => {
+  it("maps application statuses to the requested tones", () => {
+    expect(APPLICATION_TONE.accepted).toBe("green");
+    expect(APPLICATION_TONE.waitlisted).toBe("yellow");
+    expect(APPLICATION_TONE.rejected).toBe("red");
+    expect(APPLICATION_TONE.pending).toBe("grey");
+    expect(applicationToneClass("accepted")).toBe(TONE_CLASS.green);
   });
 
-  it("reflects the payment machine once approved", () => {
-    const cases: [PaymentStatus, string][] = [
-      ["invoicing", "Approved · Invoicing"],
-      ["awaiting_payment", "Approved · Awaiting payment"],
-      ["paid", "Approved · Paid"],
-      ["overdue", "Approved · Overdue"],
-      ["voided", "Approved · Invoice voided"],
-    ];
-    for (const [payment, label] of cases) {
-      expect(deriveStatus("approved", payment).label).toBe(label);
-    }
+  it("maps payment statuses to the requested tones", () => {
+    expect(PAYMENT_TONE.paid).toBe("green");
+    expect(PAYMENT_TONE.awaiting_payment).toBe("yellow");
+    expect(PAYMENT_TONE.overdue).toBe("red");
+    expect(PAYMENT_TONE.voided).toBe("grey");
+    expect(paymentToneClass("paid")).toBe(TONE_CLASS.green);
   });
+});
 
-  it("marks paid as the success (default) variant and overdue as destructive", () => {
-    expect(deriveStatus("approved", "paid").variant).toBe("default");
-    expect(deriveStatus("approved", "overdue").variant).toBe("destructive");
+describe("manual payment statuses", () => {
+  it("only admits the hand-settable subset", () => {
+    expect(MANUAL_PAYMENT_STATUSES).toEqual([
+      "awaiting_payment",
+      "paid",
+      "overdue",
+      "voided",
+    ]);
+    expect(isManualPaymentStatus("paid")).toBe(true);
+    expect(isManualPaymentStatus("none")).toBe(false);
+    expect(isManualPaymentStatus("invoicing")).toBe(false);
   });
 });

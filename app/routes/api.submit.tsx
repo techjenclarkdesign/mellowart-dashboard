@@ -11,6 +11,7 @@ import {
   MAX_PORTFOLIO_IMAGES,
   MIN_PORTFOLIO_IMAGES,
 } from "~/lib/artist";
+import { findEventByWebflowRef } from "~/lib/events.server";
 import {
   createArtistSubmission,
   type UploadFile,
@@ -143,7 +144,21 @@ export async function action({ request }: Route.ActionArgs) {
     )),
   ];
 
-  const id = await createArtistSubmission(env.DB, env.BUCKET, parsed.data, files);
+  // Optional event scoping. Webflow forms can pass the event's slug / webflow id
+  // / local id as `event`; unknown or absent refs leave the submission
+  // unassigned (the admin can scope it later).
+  const eventRef = asOptional(form.get("event"));
+  const eventId = eventRef
+    ? await findEventByWebflowRef(env.DB, eventRef)
+    : null;
+
+  const id = await createArtistSubmission(
+    env.DB,
+    env.BUCKET,
+    parsed.data,
+    files,
+    eventId,
+  );
   return json({ ok: true, id }, { status: 201 });
 }
 

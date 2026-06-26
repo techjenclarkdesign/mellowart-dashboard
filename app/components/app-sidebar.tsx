@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -24,6 +25,7 @@ import {
 const nav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inquiries", url: "/inquiry", icon: Inbox },
+  { title: "Events", url: "/events", icon: CalendarDays },
   { title: "Invoice settings", url: "/invoice-settings", icon: Receipt },
 ];
 
