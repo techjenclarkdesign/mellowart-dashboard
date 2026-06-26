@@ -779,6 +779,7 @@ export default function Inquiry({ loaderData }: Route.ComponentProps) {
         queryFn={fetchArtists}
         columns={columns}
         getRowId={(a) => a.id}
+        refetchInterval={15000}
         searchPlaceholder="Search name or email…"
         filters={filters}
         defaultMode="table"

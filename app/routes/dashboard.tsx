@@ -39,6 +39,7 @@ export default function Dashboard() {
   const { data, isPending, isError } = useQuery({
     queryKey: ["summary"],
     queryFn: fetchSummary,
+    refetchInterval: 15000,
   });
 
   return (

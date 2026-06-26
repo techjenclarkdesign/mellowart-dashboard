@@ -16,6 +16,7 @@ import {
   ChevronsUpDown,
   LayoutGrid,
   List as ListIcon,
+  RefreshCw,
   Search,
   Table2,
 } from "lucide-react";
@@ -72,6 +73,9 @@ export interface BaseTableProps<T> {
   pageSize?: number;
   pageSizeOptions?: number[];
 
+  /** Auto-refetch interval in ms (e.g. 15000). Omit to disable polling. */
+  refetchInterval?: number;
+
   modes?: ViewMode[];
   defaultMode?: ViewMode;
   renderGridItem?: (row: T) => React.ReactNode;
@@ -112,6 +116,7 @@ export function BaseTable<T>({
   filters = [],
   pageSize = DEFAULT_PAGE_SIZE,
   pageSizeOptions = PAGE_SIZE_OPTIONS,
+  refetchInterval,
   modes = ["table", "list", "grid"],
   defaultMode,
   renderGridItem,
@@ -159,6 +164,7 @@ export function BaseTable<T>({
     queryKey: [...queryKey, listQuery],
     queryFn: () => queryFn(listQuery),
     placeholderData: keepPreviousData,
+    refetchInterval,
   });
 
   const rows = query.data?.data ?? [];
@@ -225,6 +231,20 @@ export function BaseTable<T>({
             </Select>
           ))}
           {toolbarExtra}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => query.refetch()}
+            disabled={query.isFetching}
+            aria-label="Refresh"
+            title="Refresh"
+          >
+            <RefreshCw
+              className={cn("size-4", query.isFetching && "animate-spin")}
+            />
+            Refresh
+          </Button>
         </div>
 
         {modes.length > 1 && (

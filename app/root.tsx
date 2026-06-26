@@ -44,7 +44,9 @@ export default function App() {
         defaultOptions: {
           queries: {
             staleTime: 30_000,
-            refetchOnWindowFocus: false,
+            // Refetch when the admin returns to the tab, so changes made
+            // elsewhere (e.g. new inquiries from the public form) show up.
+            refetchOnWindowFocus: true,
             retry: 1,
           },
         },
