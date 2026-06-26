@@ -1,7 +1,7 @@
 import type { ArtistFields } from "~/lib/artist";
 
 export interface UploadFile {
-  kind: "profile" | "portfolio";
+  kind: "profile" | "portfolio" | "insurance";
   data: ArrayBuffer;
   contentType: string;
   size: number;
@@ -9,6 +9,7 @@ export interface UploadFile {
 }
 
 const EXT_BY_TYPE: Record<string, string> = {
+  "application/pdf": ".pdf",
   "image/jpeg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
@@ -17,9 +18,9 @@ const EXT_BY_TYPE: Record<string, string> = {
 };
 
 /**
- * Upload images to R2, then insert the submission + image rows. Files go up
- * first so a DB failure leaves orphaned objects (cheap to GC) rather than rows
- * pointing at missing images.
+ * Upload files to R2, then insert the submission + file rows. Files go up first
+ * so a DB failure leaves orphaned objects (cheap to GC) rather than rows
+ * pointing at missing files.
  */
 export async function createArtistSubmission(
   db: D1Database,
@@ -53,27 +54,36 @@ export async function createArtistSubmission(
     db
       .prepare(
         `INSERT INTO submissions
-          (id, first_name, last_name, email, phone, bio, primary_medium,
-           style_category, location, social_link, custom_orders,
-           additional_notes, consent_images, consent_purpose, event_id,
+          (id, first_name, last_name, email, applied_before, brand_name,
+           website, instagram, bio, primary_category, secondary_category,
+           product_description, additional_notes, consent_debut, consent_sharing,
+           consent_setup_guide, first_stall_preference, second_stall_preference,
+           offer_mini_if_unavailable, sharing_stall, has_insurance, event_id,
            stall_option_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
         fields.firstName,
         fields.lastName,
         fields.email,
-        fields.phone,
+        fields.appliedBefore,
+        fields.brandName,
+        fields.website,
+        fields.instagram,
         fields.bio,
-        fields.primaryMedium,
-        fields.styleCategory,
-        fields.location,
-        fields.socialLink ?? null,
-        fields.customOrders ?? null,
+        fields.primaryCategory,
+        fields.secondaryCategory,
+        fields.productDescription,
         fields.additionalNotes ?? null,
-        fields.consentImages ? 1 : 0,
-        fields.consentPurpose ? 1 : 0,
+        fields.consentDebut ? 1 : 0,
+        fields.consentSharing ? 1 : 0,
+        fields.consentSetupGuide ? 1 : 0,
+        fields.firstStallPreference,
+        fields.secondStallPreference,
+        fields.offerMiniIfUnavailable,
+        fields.sharingStall,
+        fields.hasInsurance,
         eventId,
         stallOptionId,
       ),
@@ -93,7 +103,7 @@ export async function createArtistSubmission(
 
 export interface SubmissionImage {
   id: string;
-  kind: "profile" | "portfolio";
+  kind: "profile" | "portfolio" | "insurance";
   key: string;
   sortOrder: number;
 }
@@ -103,17 +113,26 @@ export interface SubmissionDetail {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
+  appliedBefore: string | null;
+  brandName: string | null;
+  website: string | null;
+  instagram: string | null;
   bio: string;
-  primaryMedium: string;
-  styleCategory: string;
-  location: string;
-  socialLink: string | null;
-  customOrders: string | null;
+  primaryCategory: string | null;
+  secondaryCategory: string | null;
+  productDescription: string | null;
   additionalNotes: string | null;
   internalNotes: string | null;
-  consentImages: number;
-  consentPurpose: number;
+  consentDebut: number;
+  consentSharing: number;
+  consentSetupGuide: number;
+  // Stall preferences: raw slugs + their resolved tier labels (label falls back
+  // to the slug when it can't be matched to a stall option).
+  firstStallPreference: string | null;
+  secondStallPreference: string | null;
+  offerMiniIfUnavailable: string | null;
+  sharingStall: string | null;
+  hasInsurance: string | null;
   eventId: string | null;
   eventName: string | null;
   status: string;
@@ -131,18 +150,30 @@ export async function getSubmissionDetail(
 ): Promise<SubmissionDetail | null> {
   const row = await db
     .prepare(
-      `SELECT s.id, s.first_name AS firstName, s.last_name AS lastName, s.email, s.phone,
-              s.bio, s.primary_medium AS primaryMedium, s.style_category AS styleCategory,
-              s.location, s.social_link AS socialLink, s.custom_orders AS customOrders,
+      `SELECT s.id, s.first_name AS firstName, s.last_name AS lastName, s.email,
+              s.applied_before AS appliedBefore, s.brand_name AS brandName,
+              s.website, s.instagram, s.bio,
+              s.primary_category AS primaryCategory,
+              s.secondary_category AS secondaryCategory,
+              s.product_description AS productDescription,
               s.additional_notes AS additionalNotes, s.internal_notes AS internalNotes,
-              s.consent_images AS consentImages,
-              s.consent_purpose AS consentPurpose, s.event_id AS eventId, e.name AS eventName,
+              s.consent_debut AS consentDebut, s.consent_sharing AS consentSharing,
+              s.consent_setup_guide AS consentSetupGuide,
+              COALESCE(fp.tier, s.first_stall_preference) AS firstStallPreference,
+              COALESCE(sp.tier, s.second_stall_preference) AS secondStallPreference,
+              s.offer_mini_if_unavailable AS offerMiniIfUnavailable,
+              s.sharing_stall AS sharingStall, s.has_insurance AS hasInsurance,
+              s.event_id AS eventId, e.name AS eventName,
               s.status, s.reject_reason AS rejectReason,
               s.stall_option_id AS stallOptionId, o.tier AS stallTier,
               s.payment_status AS paymentStatus, s.created_at AS submittedAt
        FROM submissions s
        LEFT JOIN events e ON e.id = s.event_id
        LEFT JOIN stall_options o ON o.id = s.stall_option_id
+       LEFT JOIN stall_options fp
+              ON fp.event_id = s.event_id AND fp.slug = s.first_stall_preference
+       LEFT JOIN stall_options sp
+              ON sp.event_id = s.event_id AND sp.slug = s.second_stall_preference
        WHERE s.id = ?`,
     )
     .bind(id)

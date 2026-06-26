@@ -1,5 +1,5 @@
 import { sendEmail } from "~/lib/gmail.server";
-import { approvalEmail, rejectionEmail } from "~/lib/emails";
+import { approvalEmail, confirmationEmail, rejectionEmail } from "~/lib/emails";
 import { getInvoiceSettings, saveInvoiceRecord } from "~/lib/invoices.server";
 import { attachInvoice } from "~/lib/payments.server";
 import { createInvoice } from "~/lib/xero-client.server";
@@ -119,6 +119,44 @@ export async function createInvoiceForSubmission(
     );
   } catch (err) {
     console.error("Approval email failed (invoice still created)", err);
+  }
+}
+
+// Best-effort confirmation email sent right after a public application lands.
+// Never let a mail failure (or a missing Gmail connection) fail the submission.
+export async function sendConfirmationEmail(
+  env: Env,
+  submissionId: string,
+): Promise<void> {
+  const row = await env.DB.prepare(
+    `SELECT first_name, last_name, email, brand_name,
+            primary_category, secondary_category
+       FROM submissions WHERE id = ?`,
+  )
+    .bind(submissionId)
+    .first<{
+      first_name: string;
+      last_name: string;
+      email: string;
+      brand_name: string | null;
+      primary_category: string | null;
+      secondary_category: string | null;
+    }>();
+  if (!row) return;
+
+  try {
+    await sendEmail(
+      env,
+      confirmationEmail({
+        to: row.email,
+        name: row.first_name,
+        brandName: row.brand_name,
+        primaryCategory: row.primary_category,
+        secondaryCategory: row.secondary_category,
+      }),
+    );
+  } catch (err) {
+    console.error("Confirmation email failed (submission still created)", err);
   }
 }
 

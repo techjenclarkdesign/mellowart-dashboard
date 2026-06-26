@@ -6,13 +6,22 @@ const valid = {
   firstName: "Aria",
   lastName: "Putri",
   email: "aria@example.com",
-  phone: "+62 812-1111-2222",
+  appliedBefore: "No",
+  brandName: "Aria Studio",
+  website: "https://ariastudio.com",
+  instagram: "@ariaputri",
   bio: "A short statement.",
-  primaryMedium: "Painting",
-  styleCategory: "Contemporary",
-  location: "Bali",
-  consentImages: true as const,
-  consentPurpose: true as const,
+  primaryCategory: "Painting",
+  secondaryCategory: "Illustration",
+  productDescription: "Original paintings and prints.",
+  firstStallPreference: "standard",
+  secondStallPreference: "mini",
+  offerMiniIfUnavailable: "Yes",
+  sharingStall: "No",
+  hasInsurance: "Yes",
+  consentDebut: true as const,
+  consentSharing: true as const,
+  consentSetupGuide: true as const,
 };
 
 describe("ArtistFieldsSchema", () => {
@@ -20,12 +29,15 @@ describe("ArtistFieldsSchema", () => {
     expect(ArtistFieldsSchema.safeParse(valid).success).toBe(true);
   });
 
-  it("requires both consents to be true", () => {
+  it("requires all three agreements to be true", () => {
     expect(
-      ArtistFieldsSchema.safeParse({ ...valid, consentImages: false }).success,
+      ArtistFieldsSchema.safeParse({ ...valid, consentDebut: false }).success,
     ).toBe(false);
     expect(
-      ArtistFieldsSchema.safeParse({ ...valid, consentPurpose: false }).success,
+      ArtistFieldsSchema.safeParse({ ...valid, consentSharing: false }).success,
+    ).toBe(false);
+    expect(
+      ArtistFieldsSchema.safeParse({ ...valid, consentSetupGuide: false }).success,
     ).toBe(false);
   });
 
@@ -35,18 +47,18 @@ describe("ArtistFieldsSchema", () => {
     ).toBe(false);
   });
 
-  it("requires the dropdown fields", () => {
+  it("requires the dropdown / category fields", () => {
     expect(
-      ArtistFieldsSchema.safeParse({ ...valid, primaryMedium: "" }).success,
+      ArtistFieldsSchema.safeParse({ ...valid, primaryCategory: "" }).success,
     ).toBe(false);
     expect(
-      ArtistFieldsSchema.safeParse({ ...valid, location: "" }).success,
+      ArtistFieldsSchema.safeParse({ ...valid, firstStallPreference: "" }).success,
     ).toBe(false);
   });
 
   it("treats optional fields as undefined when omitted", () => {
     const result = ArtistFieldsSchema.safeParse(valid);
-    expect(result.success && result.data.socialLink).toBeUndefined();
+    expect(result.success && result.data.additionalNotes).toBeUndefined();
   });
 });
 

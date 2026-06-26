@@ -1,28 +1,37 @@
 import { z } from "zod";
 
 /**
- * Artist profile submission — text fields only. Files (profile photo +
- * portfolio images) are validated separately in the submit route since they
- * require multipart/R2 handling.
+ * Artist application — text fields only. Files (portfolio document + optional
+ * insurance certificate) are validated separately in the submit route since
+ * they require multipart/R2 handling.
  *
- * Dropdown options ("primary medium", "style", "location", "custom orders") are
- * TBD by the client, so they're validated as non-empty strings for now.
+ * Yes/no and dropdown answers (applied-before, categories, stall preferences,
+ * insurance, etc.) are validated as non-empty strings — the option lists are
+ * owned by the public form, not this API. Stall preferences are stall slugs and
+ * are resolved against `stall_options` at read time.
  */
 export const ArtistFieldsSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   email: z.string().trim().email().max(320),
-  phone: z.string().trim().min(3).max(40),
+  appliedBefore: z.string().trim().min(1).max(50),
+  brandName: z.string().trim().min(1).max(200),
+  website: z.string().trim().min(1).max(300),
+  instagram: z.string().trim().min(1).max(120),
   bio: z.string().trim().min(1).max(5000),
-  primaryMedium: z.string().trim().min(1).max(100),
-  styleCategory: z.string().trim().min(1).max(100),
-  location: z.string().trim().min(1).max(100),
-  socialLink: z.string().trim().max(300).optional(),
-  customOrders: z.string().trim().max(100).optional(),
+  primaryCategory: z.string().trim().min(1).max(100),
+  secondaryCategory: z.string().trim().min(1).max(100),
+  productDescription: z.string().trim().min(1).max(2000),
   additionalNotes: z.string().trim().max(5000).optional(),
-  // Both consent checkboxes are required to be true.
-  consentImages: z.literal(true),
-  consentPurpose: z.literal(true),
+  firstStallPreference: z.string().trim().min(1).max(100),
+  secondStallPreference: z.string().trim().min(1).max(100),
+  offerMiniIfUnavailable: z.string().trim().min(1).max(50),
+  sharingStall: z.string().trim().min(1).max(50),
+  hasInsurance: z.string().trim().min(1).max(50),
+  // The three stall agreements must all be ticked.
+  consentDebut: z.literal(true),
+  consentSharing: z.literal(true),
+  consentSetupGuide: z.literal(true),
 });
 
 export type ArtistFields = z.infer<typeof ArtistFieldsSchema>;
@@ -39,11 +48,12 @@ export function isBioWordCountValid(bio: string): boolean {
   return n >= BIO_MIN_WORDS && n <= BIO_MAX_WORDS;
 }
 
-// File upload constraints.
+// File upload constraints. The portfolio is a single 1-page A4 document and the
+// insurance certificate is an optional single document — both may be a PDF or an
+// image export.
 export const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
-export const MIN_PORTFOLIO_IMAGES = 3;
-export const MAX_PORTFOLIO_IMAGES = 15;
-export const ALLOWED_IMAGE_TYPES = [
+export const ALLOWED_DOC_TYPES = [
+  "application/pdf",
   "image/jpeg",
   "image/png",
   "image/webp",

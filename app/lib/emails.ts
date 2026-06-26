@@ -233,6 +233,52 @@ export function approvalEmail(input: ApprovalEmailInput): OutgoingEmail {
   };
 }
 
+export interface ConfirmationEmailInput {
+  to: string;
+  name: string;
+  brandName: string | null;
+  primaryCategory: string | null;
+  secondaryCategory: string | null;
+}
+
+/** Sent immediately after a public application is received. */
+export function confirmationEmail(input: ConfirmationEmailInput): OutgoingEmail {
+  const name = escapeHtml(input.name || "there");
+  const brand = escapeHtml(input.brandName || "your brand");
+  const row = (label: string, value: string | null) =>
+    value
+      ? `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:14px"><span style="color:#888">${escapeHtml(label)}</span><span style="font-weight:500;color:#1a1a1a">${escapeHtml(value)}</span></div>`
+      : "";
+
+  const html = layout(`
+    <p style="margin:16px 0 12px">Hi ${name},</p>
+    <p style="margin:0 0 12px">Thanks for applying to Mellow Art Market! We've received your application for <strong>${brand}</strong> and our team will be reviewing it shortly.</p>
+    <p style="margin:0 0 8px">Here's a quick recap of what happens next:</p>
+    <ol style="margin:0 0 16px;padding-left:20px;color:#444;line-height:1.7">
+      <li>Our team reviews all applications after the application window closes.</li>
+      <li>You'll hear back from us via this email address.</li>
+      <li>If approved, we'll follow up with payment and stall confirmation details.</li>
+    </ol>
+    <p style="margin:0 0 4px;font-weight:600">Application Summary</p>
+    <div style="margin:0 0 20px;padding:8px 14px;background:#f6f6f6;border-radius:8px">
+      ${row("Brand Name", input.brandName)}
+      ${row("Primary Category", input.primaryCategory)}
+      ${row("Secondary Category", input.secondaryCategory)}
+    </div>
+    <p style="margin:0 0 12px">If you need to update any part of your application (portfolio, bio, categories), reply to this email and let us know — please don't submit a duplicate application.</p>
+    <p style="margin:0 0 12px">Questions in the meantime? Just reply here.</p>
+    <p style="margin:0 0 12px">Thanks again for wanting to be part of Mellow Art Market — we can't wait to see what you bring to the table (literally).</p>
+    <p style="margin:0">Warmly,<br/>The Mellow Art Team</p>
+  `);
+
+  return {
+    to: input.to,
+    subject: "We've received your Mellow Art Market application 🎉",
+    html,
+    fromName: FROM_NAME,
+  };
+}
+
 /**
  * Sent when a submission is rejected. Includes the reason the admin typed.
  * NOTE: placeholder wording — to be refined later.

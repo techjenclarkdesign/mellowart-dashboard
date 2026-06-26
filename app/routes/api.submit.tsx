@@ -2,30 +2,26 @@ import { env } from "cloudflare:workers";
 
 import type { Route } from "./+types/api.submit";
 import {
-  ALLOWED_IMAGE_TYPES,
+  ALLOWED_DOC_TYPES,
   ArtistFieldsSchema,
   BIO_MAX_WORDS,
   BIO_MIN_WORDS,
   isBioWordCountValid,
   MAX_FILE_BYTES,
-  MAX_PORTFOLIO_IMAGES,
-  MIN_PORTFOLIO_IMAGES,
 } from "~/lib/artist";
-import {
-  findEventByWebflowRef,
-  findStallByEventSlug,
-} from "~/lib/events.server";
+import { findEventByWebflowRef } from "~/lib/events.server";
+import { sendConfirmationEmail } from "~/lib/jobs.server";
 import {
   createArtistSubmission,
   type UploadFile,
 } from "~/lib/submissions.server";
 
 /**
- * Public artist-profile submission endpoint (multipart/form-data).
+ * Public artist-application submission endpoint (multipart/form-data).
  *
  * Auth: shared secret in the `X-Client-Key` header, compared to `env.CLIENT_KEY`.
- * Text fields validated with zod; files (1 profile photo + ≥3 portfolio images)
- * validated here and streamed to R2.
+ * Text fields validated with zod; files (1 portfolio document + an optional
+ * insurance certificate) validated here and streamed to R2.
  */
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -56,12 +52,12 @@ function asBool(value: FormDataEntryValue | null): boolean {
   return s === "true" || s === "on" || s === "1" || s === "yes";
 }
 
-function validateImage(file: File): string | null {
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    return `Unsupported image type: ${file.type || "unknown"}`;
+function validateDoc(file: File): string | null {
+  if (!ALLOWED_DOC_TYPES.includes(file.type)) {
+    return `Unsupported file type: ${file.type || "unknown"} (PDF or image only)`;
   }
   if (file.size === 0) return "Empty file";
-  if (file.size > MAX_FILE_BYTES) return "Image exceeds 10 MB";
+  if (file.size > MAX_FILE_BYTES) return "File exceeds 10 MB";
   return null;
 }
 
@@ -83,21 +79,36 @@ export async function action({ request }: Route.ActionArgs) {
     return bad(400, "Expected multipart/form-data");
   }
 
+  // Re-enter email is a confirmation field — checked here, never stored. Only
+  // enforced when the form actually sends it.
+  const email = asString(form.get("email")).trim();
+  const confirmEmail = asOptional(form.get("confirmEmail"));
+  if (confirmEmail && confirmEmail.toLowerCase() !== email.toLowerCase()) {
+    return bad(422, "Email addresses do not match");
+  }
+
   // Text fields → validate.
   const parsed = ArtistFieldsSchema.safeParse({
     firstName: asString(form.get("firstName")),
     lastName: asString(form.get("lastName")),
-    email: asString(form.get("email")),
-    phone: asString(form.get("phone")),
+    email,
+    appliedBefore: asString(form.get("appliedBefore")),
+    brandName: asString(form.get("brandName")),
+    website: asString(form.get("website")),
+    instagram: asString(form.get("instagram")),
     bio: asString(form.get("bio")),
-    primaryMedium: asString(form.get("primaryMedium")),
-    styleCategory: asString(form.get("styleCategory")),
-    location: asString(form.get("location")),
-    socialLink: asOptional(form.get("socialLink")),
-    customOrders: asOptional(form.get("customOrders")),
+    primaryCategory: asString(form.get("primaryCategory")),
+    secondaryCategory: asString(form.get("secondaryCategory")),
+    productDescription: asString(form.get("productDescription")),
     additionalNotes: asOptional(form.get("additionalNotes")),
-    consentImages: asBool(form.get("consentImages")),
-    consentPurpose: asBool(form.get("consentPurpose")),
+    firstStallPreference: asString(form.get("firstStallPreference")),
+    secondStallPreference: asString(form.get("secondStallPreference")),
+    offerMiniIfUnavailable: asString(form.get("offerMiniIfUnavailable")),
+    sharingStall: asString(form.get("sharingStall")),
+    hasInsurance: asString(form.get("hasInsurance")),
+    consentDebut: asBool(form.get("consentDebut")),
+    consentSharing: asBool(form.get("consentSharing")),
+    consentSetupGuide: asBool(form.get("consentSetupGuide")),
   });
   if (!parsed.success) {
     return bad(422, "Validation failed", parsed.error.flatten());
@@ -107,44 +118,38 @@ export async function action({ request }: Route.ActionArgs) {
     return bad(422, `Bio must be ${BIO_MIN_WORDS}–${BIO_MAX_WORDS} words`);
   }
 
-  // Files.
-  const profile = form.get("profilePhoto");
-  if (!(profile instanceof File) || profile.size === 0) {
-    return bad(422, "A profile photo is required");
+  // Files: a single required portfolio document + an optional insurance cert.
+  const portfolio = form.get("portfolio");
+  if (!(portfolio instanceof File) || portfolio.size === 0) {
+    return bad(422, "A portfolio document is required");
   }
-  const portfolio = form
-    .getAll("portfolioImages")
-    .filter((f): f is File => f instanceof File && f.size > 0);
+  const insurance = form.get("insurance");
+  const hasInsuranceFile = insurance instanceof File && insurance.size > 0;
 
-  if (portfolio.length < MIN_PORTFOLIO_IMAGES) {
-    return bad(422, `At least ${MIN_PORTFOLIO_IMAGES} portfolio images are required`);
-  }
-  if (portfolio.length > MAX_PORTFOLIO_IMAGES) {
-    return bad(422, `At most ${MAX_PORTFOLIO_IMAGES} portfolio images are allowed`);
-  }
-
-  for (const file of [profile, ...portfolio]) {
-    const err = validateImage(file);
-    if (err) return bad(422, `${file.name || "file"}: ${err}`);
+  for (const file of [portfolio, ...(hasInsuranceFile ? [insurance] : [])]) {
+    const err = validateDoc(file as File);
+    if (err) return bad(422, `${(file as File).name || "file"}: ${err}`);
   }
 
   const files: UploadFile[] = [
     {
-      kind: "profile",
-      data: await profile.arrayBuffer(),
-      contentType: profile.type,
-      size: profile.size,
+      kind: "portfolio",
+      data: await portfolio.arrayBuffer(),
+      contentType: portfolio.type,
+      size: portfolio.size,
       sortOrder: 0,
     },
-    ...(await Promise.all(
-      portfolio.map(async (file, i): Promise<UploadFile> => ({
-        kind: "portfolio",
-        data: await file.arrayBuffer(),
-        contentType: file.type,
-        size: file.size,
-        sortOrder: i,
-      })),
-    )),
+    ...(hasInsuranceFile
+      ? [
+          {
+            kind: "insurance" as const,
+            data: await insurance.arrayBuffer(),
+            contentType: insurance.type,
+            size: insurance.size,
+            sortOrder: 0,
+          },
+        ]
+      : []),
   ];
 
   // Optional event scoping. Webflow forms pass the event's Webflow Item ID as
@@ -156,24 +161,21 @@ export async function action({ request }: Route.ActionArgs) {
     ? await findEventByWebflowRef(env.DB, eventRef)
     : null;
 
-  // Optional stall pre-selection. The stall's slug is only unique within its
-  // event, so it's resolved against the matched event. A stall_slug with no
-  // matching event (or no matching stall) leaves the stall unassigned — the
-  // admin assigns it later, same as before. The stall price drives the invoice.
-  const stallSlug = asOptional(form.get("stall_slug"));
-  const stallOptionId =
-    eventId && stallSlug
-      ? await findStallByEventSlug(env.DB, eventId, stallSlug)
-      : null;
-
+  // Stall preferences come in as slugs and are stored as-is; they're resolved
+  // against the event's stall options at read time. The admin still assigns the
+  // billed stall (stall_option_id) later, so it starts null.
   const id = await createArtistSubmission(
     env.DB,
     env.BUCKET,
     parsed.data,
     files,
     eventId,
-    stallOptionId,
+    null,
   );
+
+  // Best-effort confirmation email — never fail the submission if mail is down.
+  await sendConfirmationEmail(env, id);
+
   return json({ ok: true, id }, { status: 201 });
 }
 

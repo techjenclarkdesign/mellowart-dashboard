@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Copy, Loader2, MoreHorizontal, StickyNote } from "lucide-react";
+import { Copy, Loader2, MoreHorizontal, Paperclip, StickyNote } from "lucide-react";
 import { Link, useFetcher, useFetchers, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
@@ -93,9 +93,9 @@ type Artist = {
   id: string;
   name: string;
   email: string;
-  primaryMedium: string;
-  styleCategory: string;
-  location: string;
+  brandName: string | null;
+  primaryCategory: string | null;
+  secondaryCategory: string | null;
   eventId: string | null;
   status: ApplicationStatus;
   stallOptionId: string | null;
@@ -109,19 +109,25 @@ type Artist = {
 // Full record (from /api/inquiries/:id).
 type DetailImage = {
   id: string;
-  kind: "profile" | "portfolio";
+  kind: "profile" | "portfolio" | "insurance";
   key: string;
   sortOrder: number;
 };
 type ArtistDetail = Artist & {
   firstName: string;
   lastName: string;
-  phone: string;
+  appliedBefore: string | null;
+  website: string | null;
+  instagram: string | null;
   bio: string;
+  productDescription: string | null;
   eventName: string | null;
   stallTier: string | null;
-  socialLink: string | null;
-  customOrders: string | null;
+  firstStallPreference: string | null;
+  secondStallPreference: string | null;
+  offerMiniIfUnavailable: string | null;
+  sharingStall: string | null;
+  hasInsurance: string | null;
   additionalNotes: string | null;
   images: DetailImage[];
 };
@@ -147,12 +153,12 @@ async function submissionSubject(
   id: string,
 ): Promise<{ name: string; medium: string | null }> {
   const r = await env.DB.prepare(
-    "SELECT first_name, last_name, primary_medium FROM submissions WHERE id = ?",
+    "SELECT first_name, last_name, primary_category FROM submissions WHERE id = ?",
   )
     .bind(id)
-    .first<{ first_name: string; last_name: string; primary_medium: string | null }>();
+    .first<{ first_name: string; last_name: string; primary_category: string | null }>();
   const name = r ? `${r.first_name} ${r.last_name}`.trim() : id;
-  return { name, medium: r?.primary_medium ?? null };
+  return { name, medium: r?.primary_category ?? null };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -731,11 +737,21 @@ function makeColumns(stalls: StallsByEvent): ColumnDef<Artist>[] {
       ),
     },
     {
-      accessorKey: "primaryMedium",
-      header: "Medium",
+      accessorKey: "brandName",
+      header: "Brand",
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.primaryMedium}</span>
+        <span className="text-muted-foreground">{row.original.brandName ?? "—"}</span>
+      ),
+    },
+    {
+      accessorKey: "primaryCategory",
+      header: "Category",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.primaryCategory ?? "—"}
+        </span>
       ),
     },
     {
@@ -915,8 +931,8 @@ function ArtistCard({
       </CardHeader>
       <CardContent className="flex items-end justify-between gap-3">
         <div className="text-sm text-muted-foreground">
-          <p>{artist.primaryMedium}</p>
-          <p>{artist.location}</p>
+          <p>{artist.brandName ?? "—"}</p>
+          <p>{artist.primaryCategory ?? "—"}</p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <StallCell artist={artist} stalls={stalls} />
@@ -938,7 +954,7 @@ function ArtistRow({ artist }: { artist: Artist }) {
           </span>
         </p>
         <p className="truncate text-sm text-muted-foreground">
-          {artist.primaryMedium} · {artist.email}
+          {artist.brandName ?? artist.primaryCategory ?? "—"} · {artist.email}
         </p>
       </div>
       <div className="flex items-center gap-3">
@@ -997,8 +1013,8 @@ function ViewProfileDialog({
     enabled: open,
   });
 
-  const profile = data?.images.find((i) => i.kind === "profile");
   const portfolio = data?.images.filter((i) => i.kind === "portfolio") ?? [];
+  const insurance = data?.images.filter((i) => i.kind === "insurance") ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1019,29 +1035,31 @@ function ViewProfileDialog({
           </p>
         ) : (
           <div className="grid gap-5">
-            <div className="flex items-center gap-4">
-              {profile ? (
-                <img
-                  src={`/api/files/${profile.key}`}
-                  alt={`${artist.name} profile`}
-                  className="size-20 rounded-lg object-cover"
-                />
-              ) : (
-                <div className="size-20 rounded-lg bg-muted" />
-              )}
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-lg font-medium">{data.brandName ?? data.name}</p>
+                {data.instagram && (
+                  <p className="text-sm text-muted-foreground">{data.instagram}</p>
+                )}
+              </div>
               <StatusPills artist={data} />
             </div>
 
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <Detail label="Email" value={data.email} />
-              <Detail label="Phone" value={data.phone} />
+              <Detail label="Applied before" value={data.appliedBefore ?? "—"} />
+              <Detail label="Brand" value={data.brandName ?? "—"} />
+              <Detail label="Website" value={data.website ?? "—"} />
+              <Detail label="Instagram" value={data.instagram ?? "—"} />
+              <Detail label="Primary category" value={data.primaryCategory ?? "—"} />
+              <Detail label="Secondary category" value={data.secondaryCategory ?? "—"} />
               <Detail label="Event" value={data.eventName ?? "—"} />
-              <Detail label="Stall" value={data.stallTier ?? "—"} />
-              <Detail label="Primary medium" value={data.primaryMedium} />
-              <Detail label="Style / category" value={data.styleCategory} />
-              <Detail label="Location" value={data.location} />
-              <Detail label="Custom orders" value={data.customOrders ?? "—"} />
-              <Detail label="Social" value={data.socialLink ?? "—"} />
+              <Detail label="1st stall preference" value={data.firstStallPreference ?? "—"} />
+              <Detail label="2nd stall preference" value={data.secondStallPreference ?? "—"} />
+              <Detail label="Take paired Mini?" value={data.offerMiniIfUnavailable ?? "—"} />
+              <Detail label="Sharing a stall?" value={data.sharingStall ?? "—"} />
+              <Detail label="$10M insurance?" value={data.hasInsurance ?? "—"} />
+              <Detail label="Stall assigned" value={data.stallTier ?? "—"} />
               <Detail label="Payment" value={PAYMENT_LABEL[data.paymentStatus]} />
             </dl>
 
@@ -1050,6 +1068,14 @@ function ViewProfileDialog({
                 {data.bio}
               </p>
             </Field>
+
+            {data.productDescription && (
+              <Field label="Product description">
+                <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                  {data.productDescription}
+                </p>
+              </Field>
+            )}
 
             {data.additionalNotes && (
               <Field label="Additional notes">
@@ -1073,16 +1099,27 @@ function ViewProfileDialog({
               </Field>
             )}
 
-            <Field label={`Portfolio (${portfolio.length})`}>
-              <div className="grid grid-cols-3 gap-2">
-                {portfolio.map((img) => (
-                  <img
-                    key={img.id}
-                    src={`/api/files/${img.key}`}
-                    alt="Portfolio"
-                    className="aspect-square w-full rounded-md object-cover"
+            <Field label="Documents">
+              <div className="flex flex-wrap gap-2">
+                {portfolio.map((doc, i) => (
+                  <DocLink
+                    key={doc.id}
+                    href={`/api/files/${doc.key}`}
+                    label={portfolio.length > 1 ? `Portfolio ${i + 1}` : "Portfolio"}
                   />
                 ))}
+                {insurance.map((doc, i) => (
+                  <DocLink
+                    key={doc.id}
+                    href={`/api/files/${doc.key}`}
+                    label={insurance.length > 1 ? `Insurance ${i + 1}` : "Insurance"}
+                  />
+                ))}
+                {portfolio.length === 0 && insurance.length === 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    No documents uploaded.
+                  </span>
+                )}
               </div>
             </Field>
           </div>
@@ -1104,6 +1141,20 @@ function Detail({ label, value }: { label: string; value?: string }) {
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="col-span-2 break-words">{value ?? "—"}</dd>
     </div>
+  );
+}
+
+function DocLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary underline-offset-2 hover:bg-muted hover:underline"
+    >
+      <Paperclip className="size-3.5" />
+      {label}
+    </a>
   );
 }
 
