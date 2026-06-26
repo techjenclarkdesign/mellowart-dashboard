@@ -41,6 +41,7 @@ All sent as `multipart/form-data` parts.
 | `socialLink` | optional | ≤300 chars |
 | `customOrders` | optional | ≤100 chars |
 | `additionalNotes` | optional | ≤5000 chars |
+| `event` | optional | event **slug** or **Webflow Item ID** (see below) |
 | `consentImages` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 | `consentPurpose` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 
@@ -50,6 +51,18 @@ Notes:
 - Both consent flags are mandatory and must be truthy. Accepted truthy strings:
   `true`, `on`, `1`, `yes` (case-insensitive). Anything else counts as `false`
   and the request is rejected.
+
+### Event scoping (`event`)
+
+Optional. Pass the event's **slug** (e.g. `mellow-art-stationery-fair-mel-01`)
+or its **Webflow Item ID** (e.g. `6a223b24e44ab35ad710df07`) so the submission
+is filed under that event in the dashboard.
+
+- The event must already exist in the dashboard (created under **Events**).
+  An **unknown or missing** `event` is **not** an error — the submission is
+  accepted and simply left unassigned, and an admin can scope it later.
+- Matching is by slug, Webflow Item ID, or the dashboard's own event id, in
+  that order.
 
 ### Image files
 
@@ -159,10 +172,16 @@ console.log("Submission id:", data.id);
 
 ## What happens after submit
 
-1. Images are stored privately in R2 (`mellow-uploads`); a row is written to D1.
-2. The submission appears in the dashboard as **pending**.
-3. An admin **approves** (creates a Xero invoice + emails the applicant a
-   pay-invoice link) or **rejects** (emails the applicant with the reason).
+1. Images are stored privately in R2 (`mellow-uploads`); a row is written to D1
+   (linked to the `event` if one was passed and matched).
+2. The submission appears in the dashboard with application status **pending**
+   and payment status **not sent**.
+3. An admin sets the application status — **Accepted**, **Waitlisted**, or
+   **Rejected** (rejecting emails the applicant with the reason).
+4. Once **Accepted**, the admin **assigns a stall** (event-scoped; the stall's
+   price is the invoice amount), then clicks **Send invoice** — this creates the
+   Xero invoice and emails the applicant a pay-invoice link. Payment status is
+   tracked separately (Awaiting payment → Paid, etc.).
 
-The API response only confirms the submission was accepted (`201` + `id`); the
-approval/rejection decision and emails happen later in the dashboard.
+The API response only confirms the submission was accepted (`201` + `id`); all
+review, stall, invoicing, and email steps happen later in the dashboard.

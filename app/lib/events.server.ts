@@ -43,6 +43,79 @@ export async function getEvent(
     .first<EventSummary>();
 }
 
+export interface EventInput {
+  name: string;
+  slug: string;
+  webflowId?: string | null;
+  location?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}
+
+export async function createEvent(
+  db: D1Database,
+  input: EventInput,
+): Promise<string> {
+  const id = `EVT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  await db
+    .prepare(
+      `INSERT INTO events (id, webflow_id, name, slug, location, starts_at, ends_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      input.webflowId ?? null,
+      input.name,
+      input.slug,
+      input.location ?? null,
+      input.startsAt ?? null,
+      input.endsAt ?? null,
+    )
+    .run();
+  return id;
+}
+
+export async function updateEvent(
+  db: D1Database,
+  id: string,
+  input: EventInput,
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      `UPDATE events
+         SET webflow_id = ?, name = ?, slug = ?, location = ?,
+             starts_at = ?, ends_at = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+    .bind(
+      input.webflowId ?? null,
+      input.name,
+      input.slug,
+      input.location ?? null,
+      input.startsAt ?? null,
+      input.endsAt ?? null,
+      id,
+    )
+    .run();
+  return (res.meta.changes ?? 0) > 0;
+}
+
+/**
+ * Delete an event. Its stall options cascade away (FK), and any submissions
+ * pointing at it have `event_id` set to NULL (FK) — applications are never
+ * deleted by removing an event.
+ */
+export async function deleteEvent(
+  db: D1Database,
+  id: string,
+): Promise<boolean> {
+  const res = await db
+    .prepare("DELETE FROM events WHERE id = ?")
+    .bind(id)
+    .run();
+  return (res.meta.changes ?? 0) > 0;
+}
+
 export async function listStallOptions(
   db: D1Database,
   eventId: string,
