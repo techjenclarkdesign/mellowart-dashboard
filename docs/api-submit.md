@@ -41,7 +41,8 @@ All sent as `multipart/form-data` parts.
 | `socialLink` | optional | ≤300 chars |
 | `customOrders` | optional | ≤100 chars |
 | `additionalNotes` | optional | ≤5000 chars |
-| `event` | optional | event **slug** or **Webflow Item ID** (see below) |
+| `webflow_id` | optional | event **Webflow Item ID** (slug / local id also accepted) — see below |
+| `stall_slug` | optional | chosen stall's **slug**, scoped to the event — see below |
 | `consentImages` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 | `consentPurpose` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 
@@ -52,17 +53,31 @@ Notes:
   `true`, `on`, `1`, `yes` (case-insensitive). Anything else counts as `false`
   and the request is rejected.
 
-### Event scoping (`event`)
+### Event scoping (`webflow_id`)
 
-Optional. Pass the event's **slug** (e.g. `mellow-art-stationery-fair-mel-01`)
-or its **Webflow Item ID** (e.g. `6a223b24e44ab35ad710df07`) so the submission
-is filed under that event in the dashboard.
+Optional. Pass the event's **Webflow Item ID** (e.g.
+`6a223b24e44ab35ad710df07`) — its **slug** (e.g.
+`mellow-art-stationery-fair-mel-01`) or the dashboard's own event id are also
+accepted — so the submission is filed under that event in the dashboard.
 
 - The event must already exist in the dashboard (created under **Events**).
-  An **unknown or missing** `event` is **not** an error — the submission is
+  An **unknown or missing** `webflow_id` is **not** an error — the submission is
   accepted and simply left unassigned, and an admin can scope it later.
-- Matching is by slug, Webflow Item ID, or the dashboard's own event id, in
-  that order.
+- Matching is by Webflow Item ID, slug, or the dashboard's own event id.
+- The legacy field name `event` is still accepted as an alias for `webflow_id`.
+
+### Stall pre-selection (`stall_slug`)
+
+Optional. Pass the chosen stall's **slug** (configured per event under **Events →
+Stall options**) so the submission arrives with its stall already attached. The
+stall's price is the amount Xero charges when the applicant is later invoiced.
+
+- Stall slugs are only **unique within an event**, so `stall_slug` is resolved
+  **against the matched event**. It is ignored unless a valid `webflow_id`
+  resolved an event.
+- An **unknown or missing** `stall_slug` is **not** an error — the submission is
+  accepted with no stall, and an admin assigns one later (the original flow).
+- A pre-attached stall is still editable by an admin before invoicing.
 
 ### Image files
 
@@ -120,6 +135,8 @@ curl -X POST https://mellow-cf.mellowartmarket.workers.dev/api/submit \
   -F "styleCategory=Abstract" \
   -F "location=Jakarta, Indonesia" \
   -F "socialLink=https://instagram.com/artist" \
+  -F "webflow_id=6a223b24e44ab35ad710df07" \
+  -F "stall_slug=standard" \
   -F "consentImages=true" \
   -F "consentPurpose=true" \
   -F "profilePhoto=@profile.webp;type=image/webp" \
@@ -143,6 +160,8 @@ form.set("primaryMedium", "Painting");
 form.set("styleCategory", "Abstract");
 form.set("location", "Jakarta, Indonesia");
 form.set("socialLink", "https://instagram.com/artist"); // optional
+form.set("webflow_id", "6a223b24e44ab35ad710df07");     // optional: scope to event
+form.set("stall_slug", "standard");                     // optional: pre-select stall
 form.set("consentImages", "true");
 form.set("consentPurpose", "true");
 
@@ -173,12 +192,14 @@ console.log("Submission id:", data.id);
 ## What happens after submit
 
 1. Images are stored privately in R2 (`mellow-uploads`); a row is written to D1
-   (linked to the `event` if one was passed and matched).
+   (linked to the event if `webflow_id` matched, and to the stall if `stall_slug`
+   matched within that event).
 2. The submission appears in the dashboard with application status **pending**
    and payment status **not sent**.
 3. An admin sets the application status — **Accepted**, **Waitlisted**, or
    **Rejected** (rejecting emails the applicant with the reason).
-4. Once **Accepted**, the admin **assigns a stall** (event-scoped; the stall's
+4. Once **Accepted**, the admin confirms the **stall** (already attached if
+   `stall_slug` was sent, otherwise assigned here; event-scoped, the stall's
    price is the invoice amount), then clicks **Send invoice** — this creates the
    Xero invoice and emails the applicant a pay-invoice link. Payment status is
    tracked separately (Awaiting payment → Paid, etc.).

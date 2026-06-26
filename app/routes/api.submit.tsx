@@ -11,7 +11,10 @@ import {
   MAX_PORTFOLIO_IMAGES,
   MIN_PORTFOLIO_IMAGES,
 } from "~/lib/artist";
-import { findEventByWebflowRef } from "~/lib/events.server";
+import {
+  findEventByWebflowRef,
+  findStallByEventSlug,
+} from "~/lib/events.server";
 import {
   createArtistSubmission,
   type UploadFile,
@@ -144,13 +147,24 @@ export async function action({ request }: Route.ActionArgs) {
     )),
   ];
 
-  // Optional event scoping. Webflow forms can pass the event's slug / webflow id
-  // / local id as `event`; unknown or absent refs leave the submission
-  // unassigned (the admin can scope it later).
-  const eventRef = asOptional(form.get("event"));
+  // Optional event scoping. Webflow forms pass the event's Webflow Item ID as
+  // `webflow_id` (slug / local id also accepted; legacy `event` still works).
+  // Unknown or absent refs leave the submission unassigned (admin scopes later).
+  const eventRef =
+    asOptional(form.get("webflow_id")) ?? asOptional(form.get("event"));
   const eventId = eventRef
     ? await findEventByWebflowRef(env.DB, eventRef)
     : null;
+
+  // Optional stall pre-selection. The stall's slug is only unique within its
+  // event, so it's resolved against the matched event. A stall_slug with no
+  // matching event (or no matching stall) leaves the stall unassigned — the
+  // admin assigns it later, same as before. The stall price drives the invoice.
+  const stallSlug = asOptional(form.get("stall_slug"));
+  const stallOptionId =
+    eventId && stallSlug
+      ? await findStallByEventSlug(env.DB, eventId, stallSlug)
+      : null;
 
   const id = await createArtistSubmission(
     env.DB,
@@ -158,6 +172,7 @@ export async function action({ request }: Route.ActionArgs) {
     parsed.data,
     files,
     eventId,
+    stallOptionId,
   );
   return json({ ok: true, id }, { status: 201 });
 }

@@ -268,6 +268,25 @@ export async function findEventByWebflowRef(
 }
 
 /**
+ * Resolve a stall slug to a local stall-option id, scoped to one event (for the
+ * submit endpoint). Slugs are only unique within an event, so the event must be
+ * resolved first. Returns null when the event has no stall with that slug.
+ */
+export async function findStallByEventSlug(
+  db: D1Database,
+  eventId: string,
+  slug: string,
+): Promise<string | null> {
+  const row = await db
+    .prepare(
+      "SELECT id FROM stall_options WHERE event_id = ? AND slug = ? LIMIT 1",
+    )
+    .bind(eventId, slug)
+    .first<{ id: string }>();
+  return row?.id ?? null;
+}
+
+/**
  * Mirror events from the Webflow CMS into the local `events` table.
  *
  * STUB — Phase 2 wiring. The real implementation fetches the Webflow CMS

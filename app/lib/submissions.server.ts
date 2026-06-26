@@ -27,6 +27,7 @@ export async function createArtistSubmission(
   fields: ArtistFields,
   files: UploadFile[],
   eventId: string | null = null,
+  stallOptionId: string | null = null,
 ): Promise<string> {
   const id = `ART-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
@@ -54,8 +55,9 @@ export async function createArtistSubmission(
         `INSERT INTO submissions
           (id, first_name, last_name, email, phone, bio, primary_medium,
            style_category, location, social_link, custom_orders,
-           additional_notes, consent_images, consent_purpose, event_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           additional_notes, consent_images, consent_purpose, event_id,
+           stall_option_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -73,6 +75,7 @@ export async function createArtistSubmission(
         fields.consentImages ? 1 : 0,
         fields.consentPurpose ? 1 : 0,
         eventId,
+        stallOptionId,
       ),
     ...imageRows.map((r) =>
       db
