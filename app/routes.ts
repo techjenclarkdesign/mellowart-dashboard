@@ -17,7 +17,6 @@ export default [
     route("inquiry", "routes/inquiry.tsx"),
     route("events", "routes/events.tsx"),
     route("events/:id", "routes/event.$id.tsx"),
-    route("stalls", "routes/stalls.tsx"),
     route("invoice-settings", "routes/invoice-settings.tsx"),
   ]),
 

@@ -5,7 +5,6 @@ import {
   LogOut,
   Receipt,
   ShieldCheck,
-  Store,
 } from "lucide-react";
 import { Form, Link, useLocation } from "react-router";
 
@@ -27,7 +26,6 @@ const nav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inquiries", url: "/inquiry", icon: Inbox },
   { title: "Events", url: "/events", icon: CalendarDays },
-  { title: "Stalls", url: "/stalls", icon: Store },
   { title: "Invoice settings", url: "/invoice-settings", icon: Receipt },
 ];
 
