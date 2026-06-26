@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { requireAdmin } from "~/lib/auth.server";
-import { LINE_AMOUNT_TYPES } from "~/lib/invoices";
+import { LINE_AMOUNT_TYPES, TAX_TYPES } from "~/lib/invoices";
 import {
   getInvoiceSettings,
   updateInvoiceSettings,
@@ -62,8 +62,7 @@ export async function action({ request }: Route.ActionArgs) {
   const accountCode = String(form.get("accountCode") ?? "").trim();
   const itemDescription = String(form.get("itemDescription") ?? "").trim();
   const lineAmountTypes = String(form.get("lineAmountTypes") ?? "");
-  const taxTypeRaw = String(form.get("taxType") ?? "").trim();
-  const unitAmount = Number(form.get("unitAmount"));
+  const taxType = String(form.get("taxType") ?? "").trim();
   const dueDays = Number(form.get("dueDays"));
 
   if (currency.length !== 3) {
@@ -78,8 +77,8 @@ export async function action({ request }: Route.ActionArgs) {
   if (!LINE_AMOUNT_TYPES.includes(lineAmountTypes as never)) {
     return { ok: false, message: "Invalid line amount type." };
   }
-  if (!Number.isFinite(unitAmount) || unitAmount < 0) {
-    return { ok: false, message: "Unit amount must be a positive number." };
+  if (!TAX_TYPES.some((t) => t.value === taxType)) {
+    return { ok: false, message: "Invalid tax type." };
   }
   if (!Number.isInteger(dueDays) || dueDays < 0) {
     return { ok: false, message: "Due days must be a whole number." };
@@ -87,9 +86,8 @@ export async function action({ request }: Route.ActionArgs) {
 
   await updateInvoiceSettings(env.DB, {
     currency,
-    unitAmount,
     accountCode,
-    taxType: taxTypeRaw || null,
+    taxType,
     lineAmountTypes,
     itemDescription,
     dueDays,
@@ -255,18 +253,6 @@ export default function InvoiceSettings({
 
             <div className="grid gap-5 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label htmlFor="unitAmount">Unit amount</Label>
-                <Input
-                  id="unitAmount"
-                  name="unitAmount"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  defaultValue={settings.unitAmount}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
                 <Label htmlFor="currency">Currency</Label>
                 <Input
                   id="currency"
@@ -277,27 +263,12 @@ export default function InvoiceSettings({
                   required
                 />
               </div>
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="accountCode">Account code</Label>
                 <Input
                   id="accountCode"
                   name="accountCode"
                   defaultValue={settings.accountCode}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="dueDays">Due in (days)</Label>
-                <Input
-                  id="dueDays"
-                  name="dueDays"
-                  type="number"
-                  min={0}
-                  step="1"
-                  defaultValue={settings.dueDays}
                   required
                 />
               </div>
@@ -324,11 +295,35 @@ export default function InvoiceSettings({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="taxType">Tax type</Label>
-                <Input
-                  id="taxType"
+                <Select
                   name="taxType"
-                  defaultValue={settings.taxType ?? ""}
-                  placeholder="e.g. OUTPUT (leave blank for none)"
+                  defaultValue={settings.taxType ?? TAX_TYPES[0].value}
+                >
+                  <SelectTrigger id="taxType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TAX_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="dueDays">Due in (days)</Label>
+                <Input
+                  id="dueDays"
+                  name="dueDays"
+                  type="number"
+                  min={0}
+                  step="1"
+                  defaultValue={settings.dueDays}
+                  required
                 />
               </div>
             </div>

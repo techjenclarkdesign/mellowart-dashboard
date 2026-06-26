@@ -3,10 +3,9 @@
 -- Invoice config (dev values) — Mellow Art Pty Ltd (AU, GST-inclusive).
 UPDATE invoice_settings
    SET currency = 'AUD',
-       unit_amount = 440,
        account_code = '200',
        tax_type = 'OUTPUT',            -- Xero AU "GST on Income" (10%)
-       line_amount_types = 'Inclusive', -- unit amount is GST-inclusive
+       line_amount_types = 'Inclusive', -- stall price is GST-inclusive
        item_description = 'FULL TABLE FEE',
        due_days = 14
  WHERE id = 1;

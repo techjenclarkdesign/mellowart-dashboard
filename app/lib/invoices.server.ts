@@ -2,7 +2,6 @@
 
 export interface InvoiceSettings {
   currency: string;
-  unitAmount: number;
   accountCode: string;
   taxType: string | null;
   lineAmountTypes: string;
@@ -12,10 +11,9 @@ export interface InvoiceSettings {
 
 const DEFAULT_SETTINGS: InvoiceSettings = {
   currency: "AUD",
-  unitAmount: 440,
   accountCode: "200",
   taxType: "OUTPUT", // Xero AU "GST on Income" (10%)
-  lineAmountTypes: "Inclusive", // unit amount is GST-inclusive
+  lineAmountTypes: "Inclusive", // unit amount (from the stall) is GST-inclusive
   itemDescription: "FULL TABLE FEE",
   dueDays: 14,
 };
@@ -25,7 +23,7 @@ export async function getInvoiceSettings(
 ): Promise<InvoiceSettings> {
   const row = await db
     .prepare(
-      `SELECT currency, unit_amount AS unitAmount, account_code AS accountCode,
+      `SELECT currency, account_code AS accountCode,
               tax_type AS taxType, line_amount_types AS lineAmountTypes,
               item_description AS itemDescription, due_days AS dueDays
        FROM invoice_settings WHERE id = 1`,
@@ -42,12 +40,11 @@ export async function updateInvoiceSettings(
   await db
     .prepare(
       `INSERT INTO invoice_settings
-         (id, currency, unit_amount, account_code, tax_type,
+         (id, currency, account_code, tax_type,
           line_amount_types, item_description, due_days, updated_at)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       VALUES (1, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(id) DO UPDATE SET
          currency = excluded.currency,
-         unit_amount = excluded.unit_amount,
          account_code = excluded.account_code,
          tax_type = excluded.tax_type,
          line_amount_types = excluded.line_amount_types,
@@ -57,7 +54,6 @@ export async function updateInvoiceSettings(
     )
     .bind(
       s.currency,
-      s.unitAmount,
       s.accountCode,
       s.taxType,
       s.lineAmountTypes,
