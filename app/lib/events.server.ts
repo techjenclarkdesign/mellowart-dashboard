@@ -152,6 +152,41 @@ export interface StallOptionInput {
   sortOrder?: number;
 }
 
+/** Validate a stall-option form submission. Shared by the stall CRUD routes. */
+export function parseStallOptionForm(
+  form: FormData,
+): StallOptionInput | { error: string } {
+  const tier = String(form.get("tier") ?? "").trim();
+  const unitAmount = Number(form.get("unitAmount"));
+  const currency = String(form.get("currency") ?? "")
+    .trim()
+    .toUpperCase();
+  if (!tier) return { error: "Tier name is required." };
+  if (!Number.isFinite(unitAmount) || unitAmount < 0) {
+    return { error: "Price must be a positive number." };
+  }
+  if (currency.length !== 3) {
+    return { error: "Currency must be a 3-letter code." };
+  }
+  const slug = String(form.get("slug") ?? "")
+    .trim()
+    .toLowerCase();
+  if (slug && !/^[a-z0-9-]+$/.test(slug)) {
+    return { error: "Slug must be lowercase letters, numbers, and dashes." };
+  }
+  const sortOrder = Number(form.get("sortOrder"));
+  return {
+    tier,
+    slug: slug || null,
+    unitAmount,
+    currency,
+    frontage: String(form.get("frontage") ?? "").trim() || null,
+    furniture: String(form.get("furniture") ?? "").trim() || null,
+    sharing: String(form.get("sharing") ?? "").trim() || null,
+    sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+  };
+}
+
 export async function createStallOption(
   db: D1Database,
   eventId: string,
