@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import type { Route } from "./+types/activity";
 import { requireAdmin } from "~/lib/auth.server";
 import { listActivity } from "~/lib/activity.server";
-import { activityDot, formatRelative } from "~/lib/activity";
+import { activityDot, activityLabel, formatRelative } from "~/lib/activity";
 import {
   Card,
   CardContent,
@@ -34,7 +34,7 @@ export default function Activity({ loaderData }: Route.ComponentProps) {
         </p>
       </div>
 
-      <Card className="max-w-3xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Activity log</CardTitle>
           <CardDescription>Most recent first</CardDescription>
@@ -45,30 +45,49 @@ export default function Activity({ loaderData }: Route.ComponentProps) {
               No activity yet.
             </p>
           ) : (
-            <ul className="flex flex-col gap-4">
-              {items.map((a) => (
-                <li key={a.id} className="flex gap-3">
-                  <span
-                    className="mt-1.5 size-2 shrink-0 rounded-full"
-                    style={{ background: activityDot(a.type) }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    {a.subject && a.message.startsWith(a.subject) ? (
-                      <p className="text-sm leading-snug">
-                        <span className="font-semibold">{a.subject}</span>
-                        {a.message.slice(a.subject.length)}
-                      </p>
-                    ) : (
-                      <p className="text-sm leading-snug">{a.message}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {formatRelative(a.createdAt)}
-                      {a.actorEmail ? ` · by ${a.actorEmail}` : ""}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">Type</th>
+                    <th className="pb-2 pr-4 font-medium">Activity</th>
+                    <th className="pb-2 pr-4 font-medium">By</th>
+                    <th className="pb-2 font-medium">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((a) => (
+                    <tr key={a.id} className="border-t">
+                      <td className="py-2.5 pr-4 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            className="size-2 shrink-0 rounded-full"
+                            style={{ background: activityDot(a.type) }}
+                          />
+                          {activityLabel(a.type)}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-4">
+                        {a.subject && a.message.startsWith(a.subject) ? (
+                          <>
+                            <span className="font-medium">{a.subject}</span>
+                            {a.message.slice(a.subject.length)}
+                          </>
+                        ) : (
+                          a.message
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-4 text-muted-foreground">
+                        {a.actorEmail ?? "—"}
+                      </td>
+                      <td className="py-2.5 whitespace-nowrap text-muted-foreground">
+                        {formatRelative(a.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

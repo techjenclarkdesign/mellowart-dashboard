@@ -26,6 +26,22 @@ export function activityDot(type: string): string {
   return DOT[type] ?? "#a3a3a3";
 }
 
+const LABEL: Record<string, string> = {
+  approved: "Approved",
+  invoice_sent: "Invoice sent",
+  paid: "Payment",
+  awaiting: "Awaiting",
+  pending: "Pending",
+  waitlisted: "Waitlisted",
+  overdue: "Overdue",
+  voided: "Voided",
+  rejected: "Rejected",
+};
+
+export function activityLabel(type: string): string {
+  return LABEL[type] ?? type;
+}
+
 /** "2 hours ago", "Yesterday, 14:22", "3 days ago". Input is UTC datetime. */
 export function formatRelative(iso: string): string {
   const ms = Date.parse(iso.includes("T") ? iso : iso.replace(" ", "T") + "Z");
