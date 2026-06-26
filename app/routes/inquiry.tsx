@@ -67,6 +67,7 @@ import {
   startInvoicing,
 } from "~/lib/payments.server";
 import { setInternalNotes } from "~/lib/submissions.server";
+import { logActivity } from "~/lib/activity.server";
 import {
   APPLICATION_LABEL,
   APPLICATION_STATUSES,
@@ -141,6 +142,19 @@ async function fetchArtists(query: ListQuery): Promise<Paginated<Artist>> {
   return res.json();
 }
 
+/** Artist name (or reference) + medium for the activity feed. */
+async function submissionSubject(
+  id: string,
+): Promise<{ name: string; medium: string | null }> {
+  const r = await env.DB.prepare(
+    "SELECT first_name, last_name, primary_medium FROM submissions WHERE id = ?",
+  )
+    .bind(id)
+    .first<{ first_name: string; last_name: string; primary_medium: string | null }>();
+  const name = r ? `${r.first_name} ${r.last_name}`.trim() : id;
+  return { name, medium: r?.primary_medium ?? null };
+}
+
 export async function action({ request }: Route.ActionArgs) {
   const session = await requireAdmin(request);
   const form = await request.formData();
@@ -167,8 +181,23 @@ export async function action({ request }: Route.ActionArgs) {
         session.email,
         status === "rejected" ? reason : null,
       );
-      if (changed && status === "rejected") {
-        await sendRejectionEmail(env, id, reason);
+      if (changed) {
+        if (status === "rejected") await sendRejectionEmail(env, id, reason);
+        const { name } = await submissionSubject(id);
+        const phrase: Record<string, string> = {
+          accepted: `${name} application approved`,
+          waitlisted: `${name} application waitlisted`,
+          rejected: `${name} application rejected`,
+          pending: `${name} moved back to pending`,
+        };
+        await logActivity(env.DB, {
+          actorId: session.sub,
+          actorEmail: session.email,
+          submissionId: id,
+          subject: name,
+          type: status === "accepted" ? "approved" : status,
+          message: phrase[status] ?? `${name} ${status}`,
+        });
       }
       return changed
         ? { ok: true, message: `${id} set to ${APPLICATION_LABEL[status]}.` }
@@ -206,6 +235,17 @@ export async function action({ request }: Route.ActionArgs) {
           message: `Couldn't create the Xero invoice for ${id}. Check the Xero connection and try again.`,
         };
       }
+      {
+        const { name } = await submissionSubject(id);
+        await logActivity(env.DB, {
+          actorId: session.sub,
+          actorEmail: session.email,
+          submissionId: id,
+          subject: name,
+          type: "invoice_sent",
+          message: `${name} approved — invoice sent`,
+        });
+      }
       return { ok: true, message: `${id} invoiced via Xero.` };
     }
 
@@ -215,6 +255,34 @@ export async function action({ request }: Route.ActionArgs) {
         return { ok: false, message: "Unknown payment status." };
       }
       const changed = await setPaymentStatus(env.DB, id, payment);
+      if (changed) {
+        const { name, medium } = await submissionSubject(id);
+        const entry: Record<string, { type: string; subject: string; message: string }> = {
+          paid: {
+            type: "paid",
+            subject: name,
+            message: `${name} payment received${medium ? ` · ${medium}` : ""}`,
+          },
+          overdue: { type: "overdue", subject: name, message: `${name} invoice overdue` },
+          voided: { type: "voided", subject: id, message: `${id} invoice voided` },
+          awaiting_payment: {
+            type: "awaiting",
+            subject: name,
+            message: `${name} awaiting payment`,
+          },
+        };
+        const e = entry[payment];
+        if (e) {
+          await logActivity(env.DB, {
+            actorId: session.sub,
+            actorEmail: session.email,
+            submissionId: id,
+            subject: e.subject,
+            type: e.type,
+            message: e.message,
+          });
+        }
+      }
       return changed
         ? { ok: true, message: `${id} payment set to ${PAYMENT_LABEL[payment]}.` }
         : { ok: false, message: `${id} has no invoice to update.` };

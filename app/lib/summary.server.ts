@@ -1,9 +1,20 @@
+import { listActivity, type ActivityEntry } from "~/lib/activity.server";
+
 export interface InquirySummary {
   total: number;
   pending: number;
   accepted: number;
   waitlisted: number;
   rejected: number;
+}
+
+export interface RecentSubmission {
+  id: string;
+  name: string;
+  status: string;
+  stallTier: string | null;
+  stallSlug: string | null;
+  paymentStatus: string;
 }
 
 interface StatusRow {
@@ -51,6 +62,10 @@ export interface DashboardData {
   trend: { date: string; count: number }[];
   /** Outcome breakdown for the donut (non-zero buckets only). */
   breakdown: { key: string; label: string; count: number }[];
+  /** Last 5 submissions. */
+  recentSubmissions: RecentSubmission[];
+  /** Latest activity-log entries. */
+  recentActivity: ActivityEntry[];
 }
 
 interface DailyStatusRow {
@@ -167,5 +182,28 @@ export async function getDashboardData(db: D1Database): Promise<DashboardData> {
     count: buckets.get(o.key) ?? 0,
   })).filter((b) => b.count > 0);
 
-  return { counts, deltas, sparks, trend, breakdown };
+  const recent = await db
+    .prepare(
+      `SELECT s.id, (s.first_name || ' ' || s.last_name) AS name, s.status,
+              o.tier AS stallTier, o.slug AS stallSlug,
+              s.payment_status AS paymentStatus
+         FROM submissions s
+         LEFT JOIN stall_options o ON o.id = s.stall_option_id
+        ORDER BY s.created_at DESC
+        LIMIT 5`,
+    )
+    .all<RecentSubmission>();
+  const recentSubmissions = recent.results ?? [];
+
+  const recentActivity = await listActivity(db, 8);
+
+  return {
+    counts,
+    deltas,
+    sparks,
+    trend,
+    breakdown,
+    recentSubmissions,
+    recentActivity,
+  };
 }

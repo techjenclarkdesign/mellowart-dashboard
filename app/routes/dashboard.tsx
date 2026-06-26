@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
+import { ArrowRight } from "lucide-react";
 
 import type { Route } from "./+types/dashboard";
+import { Button } from "~/components/ui/button";
 import { Donut, Sparkline, TrendChart } from "~/components/charts";
 import {
   Card,
@@ -10,6 +13,12 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { activityDot, formatRelative, type ActivityItem } from "~/lib/activity";
+import {
+  APPLICATION_LABEL,
+  applicationToneClass,
+  type ApplicationStatus,
+} from "~/lib/status";
 import { cn } from "~/lib/utils";
 
 export function meta(_: Route.MetaArgs) {
@@ -18,12 +27,23 @@ export function meta(_: Route.MetaArgs) {
 
 type Metric = "total" | "pending" | "accepted" | "rejected";
 
+type RecentSubmission = {
+  id: string;
+  name: string;
+  status: ApplicationStatus;
+  stallTier: string | null;
+  stallSlug: string | null;
+  paymentStatus: string;
+};
+
 type DashboardData = {
   counts: Record<"total" | "pending" | "accepted" | "waitlisted" | "rejected", number>;
   deltas: Record<Metric, number | null>;
   sparks: Record<Metric, number[]>;
   trend: { date: string; count: number }[];
   breakdown: { key: string; label: string; count: number }[];
+  recentSubmissions: RecentSubmission[];
+  recentActivity: ActivityItem[];
 };
 
 const CARDS: {
@@ -192,6 +212,128 @@ export default function Dashboard() {
                   ))}
                 </div>
               </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent submissions + activity */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div className="space-y-1">
+              <CardTitle className="text-base">Recent submissions</CardTitle>
+              <CardDescription>Last 5 artist applications</CardDescription>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/inquiry">
+                View all <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isPending ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (data?.recentSubmissions.length ?? 0) === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No submissions yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="pb-2 font-medium">Reference</th>
+                      <th className="pb-2 font-medium">Name</th>
+                      <th className="pb-2 font-medium">App status</th>
+                      <th className="pb-2 font-medium">Stall</th>
+                      <th className="pb-2 font-medium">Payment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data?.recentSubmissions.map((s) => {
+                      const paid = s.paymentStatus === "paid";
+                      return (
+                        <tr key={s.id} className="border-t">
+                          <td className="py-2 font-mono text-xs text-muted-foreground">
+                            {s.id}
+                          </td>
+                          <td className="py-2 font-medium">{s.name}</td>
+                          <td className="py-2">
+                            <span
+                              className={cn(
+                                "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
+                                applicationToneClass(s.status),
+                              )}
+                            >
+                              {APPLICATION_LABEL[s.status]}
+                            </span>
+                          </td>
+                          <td className="py-2 text-muted-foreground">
+                            {s.stallTier ?? "—"}
+                          </td>
+                          <td className="py-2">
+                            <span
+                              className={cn(
+                                "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
+                                paid
+                                  ? "bg-foreground text-background"
+                                  : "bg-muted text-muted-foreground",
+                              )}
+                            >
+                              {paid ? "Paid" : "Unpaid"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent activity</CardTitle>
+            <CardDescription>Latest status changes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isPending ? (
+              <div className="flex flex-col gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-full" />
+                ))}
+              </div>
+            ) : (data?.recentActivity.length ?? 0) === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No activity yet.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-4">
+                {data?.recentActivity.map((a) => (
+                  <li key={a.id} className="flex gap-3">
+                    <span
+                      className="mt-1.5 size-2 shrink-0 rounded-full"
+                      style={{ background: activityDot(a.type) }}
+                    />
+                    <div className="min-w-0">
+                      {a.subject && a.message.startsWith(a.subject) ? (
+                        <p className="text-sm leading-snug">
+                          <span className="font-semibold">{a.subject}</span>
+                          {a.message.slice(a.subject.length)}
+                        </p>
+                      ) : (
+                        <p className="text-sm leading-snug">{a.message}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {formatRelative(a.createdAt)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
