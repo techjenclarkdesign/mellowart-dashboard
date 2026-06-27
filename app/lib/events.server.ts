@@ -253,8 +253,9 @@ export async function deleteStallOption(
   return (res.meta.changes ?? 0) > 0;
 }
 
-/** Resolve a Webflow CMS slug/id to a local event id (for the submit endpoint). */
-export async function findEventByWebflowRef(
+/** Resolve an event slug (or Webflow Item ID / local id) to a local event id
+ * (for the submit endpoint). */
+export async function findEventBySlug(
   db: D1Database,
   ref: string,
 ): Promise<string | null> {

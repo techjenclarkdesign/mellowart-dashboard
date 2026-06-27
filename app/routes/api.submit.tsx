@@ -9,7 +9,7 @@ import {
   isBioWordCountValid,
   MAX_FILE_BYTES,
 } from "~/lib/artist";
-import { findEventByWebflowRef } from "~/lib/events.server";
+import { findEventBySlug } from "~/lib/events.server";
 import { sendConfirmationEmail } from "~/lib/jobs.server";
 import {
   createArtistSubmission,
@@ -152,14 +152,15 @@ export async function action({ request }: Route.ActionArgs) {
       : []),
   ];
 
-  // Optional event scoping. Webflow forms pass the event's Webflow Item ID as
-  // `webflow_id` (slug / local id also accepted; legacy `event` still works).
-  // Unknown or absent refs leave the submission unassigned (admin scopes later).
+  // Optional event scoping. Forms pass the event's `eventSlug` (the event's
+  // Webflow Item ID or local id are still accepted; legacy `webflow_id` /
+  // `event` field names also work). Unknown or absent refs leave the submission
+  // unassigned (admin scopes later).
   const eventRef =
-    asOptional(form.get("webflow_id")) ?? asOptional(form.get("event"));
-  const eventId = eventRef
-    ? await findEventByWebflowRef(env.DB, eventRef)
-    : null;
+    asOptional(form.get("eventSlug")) ??
+    asOptional(form.get("webflow_id")) ??
+    asOptional(form.get("event"));
+  const eventId = eventRef ? await findEventBySlug(env.DB, eventRef) : null;
 
   // Stall preferences come in as slugs and are stored as-is; they're resolved
   // against the event's stall options at read time. The admin still assigns the

@@ -51,7 +51,7 @@ All sent as `multipart/form-data` parts.
 | `consentDebut` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 | `consentSharing` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 | `consentSetupGuide` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
-| `webflow_id` | optional | event **Webflow Item ID** (slug / local id also accepted) — see below |
+| `eventSlug` | optional | event **slug** (Webflow Item ID / local id also accepted) — see below |
 
 Notes:
 - `bio` has **two** checks: a character cap (≤5000) and a **word count of
@@ -75,16 +75,18 @@ configured per event under **Events → Stall options**, e.g. `mini`, `standard`
   assigns the actual stall (which sets the invoice price) inside the dashboard;
   the assignment starts empty.
 
-### Event scoping (`webflow_id`)
+### Event scoping (`eventSlug`)
 
-Optional. Pass the event's **Webflow Item ID** (e.g.
-`6a223b24e44ab35ad710df07`) — its **slug** or the dashboard's own event id are
-also accepted — so the application is filed under that event in the dashboard.
+Optional. Pass the event's **slug** (e.g. `mellow-debut-2025`, the same slug
+configured under **Events**) — the event's **Webflow Item ID** (e.g.
+`6a223b24e44ab35ad710df07`) or the dashboard's own event id are also accepted —
+so the application is filed under that event in the dashboard.
 
 - The event must already exist in the dashboard (created under **Events**).
-  An **unknown or missing** `webflow_id` is **not** an error — the application is
+  An **unknown or missing** `eventSlug` is **not** an error — the application is
   accepted and simply left unassigned, and an admin can scope it later.
-- The legacy field name `event` is still accepted as an alias for `webflow_id`.
+- The legacy field names `webflow_id` and `event` are still accepted as aliases
+  for `eventSlug`.
 
 ### Document files
 
@@ -154,7 +156,7 @@ curl -X POST https://mellow-cf.mellowartmarket.workers.dev/api/submit \
   -F "consentDebut=true" \
   -F "consentSharing=true" \
   -F "consentSetupGuide=true" \
-  -F "webflow_id=6a223b24e44ab35ad710df07" \
+  -F "eventSlug=mellow-debut-2025" \
   -F "portfolio=@portfolio.pdf;type=application/pdf" \
   -F "insurance=@insurance.pdf;type=application/pdf"
 ```
@@ -185,7 +187,7 @@ form.set("hasInsurance", "Yes");
 form.set("consentDebut", "true");
 form.set("consentSharing", "true");
 form.set("consentSetupGuide", "true");
-form.set("webflow_id", "6a223b24e44ab35ad710df07"); // optional: scope to event
+form.set("eventSlug", "mellow-debut-2025"); // optional: scope to event
 
 // Files (Blob/File with a correct type).
 form.set("portfolio", portfolioFile, "portfolio.pdf");      // required
@@ -212,7 +214,7 @@ console.log("Application id:", data.id);
 ## What happens after submit
 
 1. Documents are stored privately in R2 (`mellow-uploads`); a row is written to
-   D1 (linked to the event if `webflow_id` matched). Stall preferences are saved
+   D1 (linked to the event if `eventSlug` matched). Stall preferences are saved
    as slugs.
 2. A **confirmation email** is sent to the applicant (best-effort — a mail
    failure never fails the submission).

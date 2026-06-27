@@ -1,0 +1,184 @@
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const API_URL = "https://mellow-cf.mellowartmarket.workers.dev/api/submit";
+  const CLIENT_KEY = "7dfff68414fee6a168e14a36e822be21";
+  const form = document.getElementById("wf-form-artist-application");
+  if (!form) return;
+
+  // Resolve the event reference (event slug, Webflow Item ID, or dashboard
+  // event id). The API field name is `eventSlug`; the value can be any of those.
+  // Sources are tried in order: hidden field → element text/data → URL → slug.
+  function getEventRef() {
+    // 1) Hidden input on the form (recommended — CMS-bound HTML Embed):
+    //    <input type="hidden" name="eventSlug" value="{{ slug or item id }}">
+    const hidden = form.querySelector(
+      '[name="eventSlug"], [name="webflow_id"], [name="itemId"], [name="event"]'
+    );
+    if (hidden && hidden.value && hidden.value.trim()) return hidden.value.trim();
+
+    // 2) Any element that holds the value as text or a data attribute:
+    //    <div id="eventSlug">summer-2026</div>  or  data-event-slug="..."
+    const el = document.querySelector(
+      "#eventSlug, [data-event-slug], .event-slug, #webflow_id, [data-webflow-id], .webflow-id"
+    );
+    if (el) {
+      const v = (
+        el.getAttribute("data-event-slug") ||
+        el.getAttribute("data-webflow-id") ||
+        el.textContent ||
+        ""
+      ).trim();
+      if (v) return v;
+    }
+
+    // 3) URL query param: ?eventSlug=... or ?event=...
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("eventSlug") || params.get("webflow_id") || params.get("event");
+    if (q && q.trim()) return q.trim();
+
+    // 4) Fallback: last URL segment (the event slug on a CMS page).
+    const segs = window.location.pathname.split("/").filter(Boolean);
+    return segs.length ? segs[segs.length - 1] : "";
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const submitBtn = form.querySelector('input[type="submit"]');
+    if (submitBtn) {
+      submitBtn.value = "Submitting...";
+      submitBtn.disabled = true;
+    }
+
+    try {
+      // === VALIDASI EMAIL ARTIST 1 ===
+      const emailFields = form.querySelectorAll('input[type="email"]:not([disabled])');
+      const artist1Email1 = emailFields[0]?.value.trim();
+      const artist1Email2 = emailFields[1]?.value.trim();
+
+      if (artist1Email1 !== artist1Email2) {
+        alert("Email addresses do not match. Please check and try again.");
+        if (submitBtn) { submitBtn.value = "Submit"; submitBtn.disabled = false; }
+        return;
+      }
+
+      const sharingField = form.querySelector("#sharing");
+      const sharing = sharingField?.value?.toLowerCase() || "no";
+
+      // === VALIDASI EMAIL ARTIST 2 (jika sharing) ===
+      if (sharing === "yes") {
+        const artist2Email1 = emailFields[2]?.value.trim();
+        const artist2Email2 = emailFields[3]?.value.trim();
+        if (artist2Email1 !== artist2Email2) {
+          alert("Stall buddy email addresses do not match.");
+          if (submitBtn) { submitBtn.value = "Submit"; submitBtn.disabled = false; }
+          return;
+        }
+      }
+
+      // === BUILD FORM DATA ===
+      const data = new FormData();
+
+      // Ambil field dari LUAR buddy section saja (artist 1)
+      const mainSection = form;
+      const buddySection = document.getElementById("Stall-Buddy-Details");
+
+      // Helper: ambil field di luar buddy section
+      function getMainValue(selector) {
+        const allEls = mainSection.querySelectorAll(selector);
+        for (const el of allEls) {
+          if (!buddySection.contains(el)) return el.value || "";
+        }
+        return "";
+      }
+
+      data.set("firstName",             getMainValue('[name="first-name"]'));
+      data.set("lastName",              getMainValue('[name="last-name"]'));
+      data.set("email",                 artist1Email1);
+      data.set("confirmEmail",          artist1Email2);
+      data.set("appliedBefore",         getMainValue('[name="First-timer"]'));
+      data.set("brandName",             getMainValue('[name="Brand-name"]'));
+      data.set("website",               getMainValue('[name="Website"]'));
+      data.set("instagram",             getMainValue('[name="Instagram"]'));
+      data.set("bio",                   getMainValue('[name="artist-bio"]'));
+      data.set("primaryCategory",       getMainValue('[name="category-01"]'));
+      data.set("secondaryCategory",     getMainValue('[name="category-02"]'));
+      data.set("productDescription",    getMainValue('[name="product-info"]'));
+      data.set("additionalNotes",       getMainValue('[name="other"]'));
+      data.set("secondStallPreference", getMainValue('[name="second-pref"]'));
+      data.set("offerMiniIfUnavailable",getMainValue('[name="half-table-permission"]'));
+      data.set("sharingStall",          sharing);
+      data.set("hasInsurance",          getMainValue('[name="Insurance"]'));
+
+      // Event reference (the missing piece) — sent as `eventSlug`.
+      const eventRef = getEventRef();
+      if (eventRef) data.set("eventSlug", eventRef);
+
+      // First stall preference dari radio
+      const firstPrefRadio = form.querySelector('input[name="first-pref"]:checked');
+      data.set("firstStallPreference", firstPrefRadio?.value || "");
+
+      // Consent — ambil by name spesifik
+      const consentDebut      = form.querySelector('[name="Checkbox---debut"]');
+      const consentCheckboxes = form.querySelectorAll('[name="Checkbox---buddy-stall-size"]');
+      const consentSharing    = consentCheckboxes[0];
+      const consentSetupGuide = consentCheckboxes[1];
+
+      data.set("consentDebut",      consentDebut?.checked      ? "true" : "false");
+      data.set("consentSharing",    consentSharing?.checked    ? "true" : "false");
+      data.set("consentSetupGuide", consentSetupGuide?.checked ? "true" : "false");
+
+      // Portfolio file — ambil yang di luar buddy section
+      const portfolioInputs = form.querySelectorAll('input[name="file"]');
+      for (const input of portfolioInputs) {
+        if (!buddySection.contains(input) && input.files?.[0]) {
+          data.set("portfolio", input.files[0], input.files[0].name);
+          break;
+        }
+      }
+
+      // Insurance file
+      const insuranceInput = form.querySelector('input[name="file-2"]');
+      if (insuranceInput?.files?.[0]) {
+        data.set("insurance", insuranceInput.files[0], insuranceInput.files[0].name);
+      }
+
+      // Debug log
+      console.log("Submitting data:");
+      for (const [k, v] of data.entries()) {
+        console.log(k, "=", v);
+      }
+
+      // === SUBMIT KE API ===
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "X-Client-Key": CLIENT_KEY },
+        body: data,
+      });
+
+      const result = await res.json();
+      console.log("API response:", result);
+
+      if (!res.ok) {
+        let errMsg = result.error || "Submission failed.";
+        if (result.issues?.fieldErrors) {
+          errMsg += "\n\n" + Object.entries(result.issues.fieldErrors)
+            .map(([k, v]) => `• ${k}: ${v.join(", ")}`)
+            .join("\n");
+        }
+        alert(errMsg);
+        if (submitBtn) { submitBtn.value = "Submit"; submitBtn.disabled = false; }
+        return;
+      }
+
+      console.log("Application submitted:", result.id);
+      window.location.href = "/form-application-success";
+
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong. Please try again.");
+      if (submitBtn) { submitBtn.value = "Submit"; submitBtn.disabled = false; }
+    }
+  });
+});
+</script>
