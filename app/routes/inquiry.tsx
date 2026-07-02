@@ -1132,7 +1132,7 @@ function ViewProfileDialog({
             </div>
 
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
-              <Detail label="Email" value={data.email} />
+              <Detail label="Email" value={data.email || "—"} />
               <Detail label="Applied before" value={data.appliedBefore ?? "—"} />
               <Detail label="Brand" value={data.brandName ?? "—"} />
               <Detail label="Website" value={data.website ?? "—"} />
@@ -1149,7 +1149,7 @@ function ViewProfileDialog({
               <Detail label="Payment" value={PAYMENT_LABEL[data.paymentStatus]} />
             </dl>
 
-            <Field label="Artist statement">
+            <Field label="Artist bio">
               <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                 {data.bio}
               </p>
@@ -1222,7 +1222,7 @@ function ViewProfileDialog({
                 <div>
                   <p className="text-sm font-semibold">Second artist</p>
                   <p className="text-xs text-muted-foreground">
-                    Shared-stall applicant ({data.sharingStall ?? "sharing"}).
+                    Sharing a stall with the main applicant.
                   </p>
                 </div>
 
@@ -1247,7 +1247,7 @@ function ViewProfileDialog({
                 </dl>
 
                 {data.secondBio && (
-                  <Field label="Artist statement">
+                  <Field label="Artist bio">
                     <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                       {data.secondBio}
                     </p>
