@@ -1169,7 +1169,7 @@ function ViewProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>{artist.name}</DialogTitle>
           <DialogDescription>{artist.id}</DialogDescription>
@@ -1196,7 +1196,7 @@ function ViewProfileDialog({
               <StatusPills artist={data} />
             </div>
 
-            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+            <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
               <Detail label="Email" value={data.email || "—"} />
               <Detail label="Applied before" value={data.appliedBefore ?? "—"} />
               <Detail label="Brand" value={data.brandName ?? "—"} />
@@ -1291,7 +1291,7 @@ function ViewProfileDialog({
                   </p>
                 </div>
 
-                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
                   <Detail label="Name" value={secondName || "—"} />
                   <Detail label="Email" value={data.secondEmail ?? "—"} />
                   <Detail
