@@ -26,7 +26,7 @@ const LIST_CONFIG: D1ListConfig = {
     "created_at AS submittedAt",
   searchColumns: ["first_name", "last_name", "email"],
   // Filter keys sent by the UI map 1:1 to these columns.
-  filterColumns: ["status", "payment_status", "event_id"],
+  filterColumns: ["status", "payment_status", "event_id", "stall_option_id"],
   sortColumns: ["last_name", "status", "payment_status", "created_at"],
   defaultSort: { field: "created_at", dir: "desc" },
 };

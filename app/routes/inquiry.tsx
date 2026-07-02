@@ -802,8 +802,14 @@ export default function Inquiry({ loaderData }: Route.ComponentProps) {
 
   const columns = useMemo(() => makeColumns(stalls), [stalls]);
 
-  const filters: FilterDef[] = useMemo(
-    () => [
+  // The stall filter is scoped to the currently selected event, so we mirror
+  // that filter's value here to build the right stall options.
+  const [selectedEvent, setSelectedEvent] = useState<string | null>(
+    eventParam ?? null,
+  );
+
+  const filters: FilterDef[] = useMemo(() => {
+    const defs: FilterDef[] = [
       {
         id: "status",
         label: "Application",
@@ -833,14 +839,30 @@ export default function Inquiry({ loaderData }: Route.ComponentProps) {
           value: e.id,
         })),
       },
-    ],
-    [events],
-  );
+    ];
 
-  // Track the live table query so Copy emails can reproduce the filtered set.
+    // Only meaningful once a single event is selected — stalls are per-event.
+    const stallOptions = selectedEvent ? stalls[selectedEvent] ?? [] : [];
+    if (stallOptions.length > 0) {
+      defs.push({
+        id: "stall_option_id",
+        label: "Stall",
+        options: stallOptions.map((o) => ({
+          label: `${o.tier} — $${o.unitAmount} ${o.currency}`,
+          value: o.id,
+        })),
+      });
+    }
+
+    return defs;
+  }, [events, stalls, selectedEvent]);
+
+  // Track the live table query so Copy emails can reproduce the filtered set
+  // and so the stall filter can follow the selected event.
   const queryRef = useRef<ListQuery>({ page: 1, pageSize: 10 });
   const onQueryChange = useCallback((q: ListQuery) => {
     queryRef.current = q;
+    setSelectedEvent(q.filters?.event_id ?? null);
   }, []);
 
   const copyEmails = useCallback(async () => {

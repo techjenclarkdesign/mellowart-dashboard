@@ -143,6 +143,26 @@ export function BaseTable<T>({
     setPagination((p) => ({ ...p, pageIndex: 0 }));
   }, [search, activeFilters]);
 
+  // Drop any active filter value that the current filter defs no longer offer
+  // (e.g. a stall filter whose options changed because the selected event
+  // changed). Otherwise we'd keep querying by a value the user can't see or
+  // clear from the toolbar.
+  React.useEffect(() => {
+    setActiveFilters((prev) => {
+      let changed = false;
+      const next: Record<string, string> = {};
+      for (const [key, value] of Object.entries(prev)) {
+        const def = filters.find((f) => f.id === key);
+        if (def && def.options.some((o) => o.value === value)) {
+          next[key] = value;
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [filters]);
+
   const listQuery: ListQuery = {
     page: pagination.pageIndex + 1,
     pageSize: pagination.pageSize,
