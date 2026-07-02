@@ -52,6 +52,31 @@ function asBool(value: FormDataEntryValue | null): boolean {
   return s === "true" || s === "on" || s === "1" || s === "yes";
 }
 
+/**
+ * First non-empty text value across several field names. Lets us accept both
+ * the API name and the native Webflow name (e.g. `secondEmail` / `buddy-email-01`).
+ */
+function pickOptional(form: FormData, ...keys: string[]): string | undefined {
+  for (const k of keys) {
+    const s = asOptional(form.get(k));
+    if (s) return s;
+  }
+  return undefined;
+}
+
+/** First present form entry (file or text) across several field names. */
+function pickEntry(
+  form: FormData,
+  ...keys: string[]
+): FormDataEntryValue | null {
+  for (const k of keys) {
+    const v = form.get(k);
+    if (v instanceof File ? v.size > 0 : typeof v === "string" && v.trim())
+      return v;
+  }
+  return null;
+}
+
 function validateDoc(file: File): string | null {
   if (!ALLOWED_DOC_TYPES.includes(file.type)) {
     return `Unsupported file type: ${file.type || "unknown"} (PDF or image only)`;
@@ -110,18 +135,36 @@ export async function action({ request }: Route.ActionArgs) {
     consentSharing: asBool(form.get("consentSharing")),
     consentSetupGuide: asBool(form.get("consentSetupGuide")),
     // Shared-stall second artist ("buddy") — only present when sharingStall
-    // is "Yes". buddy-email-02 is a confirm field and is never stored.
-    secondFirstName: asOptional(form.get("secondFirstName")),
-    secondLastName: asOptional(form.get("secondLastName")),
-    secondEmail: asOptional(form.get("secondEmail")),
-    secondAppliedBefore: asOptional(form.get("secondAppliedBefore")),
-    secondBrandName: asOptional(form.get("secondBrandName")),
-    secondWebsite: asOptional(form.get("secondWebsite")),
-    secondInstagram: asOptional(form.get("secondInstagram")),
-    secondBio: asOptional(form.get("secondBio")),
-    secondPrimaryCategory: asOptional(form.get("secondPrimaryCategory")),
-    secondSecondaryCategory: asOptional(form.get("secondSecondaryCategory")),
-    secondProductDescription: asOptional(form.get("secondProductDescription")),
+    // is "Yes". Accept the API name OR the native Webflow `buddy-*` name so the
+    // data flows however the form forwards it. buddy-email-02 is a confirm
+    // field and is never stored.
+    secondFirstName: pickOptional(form, "secondFirstName", "buddy-first-name"),
+    secondLastName: pickOptional(form, "secondLastName", "buddy-last-name"),
+    secondEmail: pickOptional(form, "secondEmail", "buddy-email-01"),
+    secondAppliedBefore: pickOptional(
+      form,
+      "secondAppliedBefore",
+      "buddy-first-timer",
+    ),
+    secondBrandName: pickOptional(form, "secondBrandName", "buddy-brand-name"),
+    secondWebsite: pickOptional(form, "secondWebsite", "buddy-website"),
+    secondInstagram: pickOptional(form, "secondInstagram", "buddy-instagram"),
+    secondBio: pickOptional(form, "secondBio", "buddy-artist-bio"),
+    secondPrimaryCategory: pickOptional(
+      form,
+      "secondPrimaryCategory",
+      "buddy-category-01",
+    ),
+    secondSecondaryCategory: pickOptional(
+      form,
+      "secondSecondaryCategory",
+      "buddy-category-02",
+    ),
+    secondProductDescription: pickOptional(
+      form,
+      "secondProductDescription",
+      "buddy-product-info",
+    ),
   });
   if (!parsed.success) {
     return bad(422, "Validation failed", parsed.error.flatten());
@@ -140,7 +183,11 @@ export async function action({ request }: Route.ActionArgs) {
   const hasInsuranceFile = insurance instanceof File && insurance.size > 0;
 
   // Optional second-artist portfolio (shared stall). Same rules as the main one.
-  const secondPortfolio = form.get("secondPortfolio");
+  const secondPortfolio = pickEntry(
+    form,
+    "secondPortfolio",
+    "buddy-portfolio-file",
+  );
   const hasSecondPortfolio =
     secondPortfolio instanceof File && secondPortfolio.size > 0;
 

@@ -59,6 +59,9 @@ Only sent when the applicant answers **Yes** to `sharingStall` (the form's
 conditional "buddy" section). All are **optional** on the API — send them when
 sharing, omit them otherwise. They mirror the main applicant's text fields.
 
+Each field is accepted under **either** the API name **or** the native Webflow
+name in the "Webflow field" column below — send whichever your integration has.
+
 | Field | Webflow field | Rules |
 | --- | --- | --- |
 | `secondFirstName` | `buddy-first-name` | 1–100 chars |
