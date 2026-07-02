@@ -719,6 +719,17 @@ function NotesCell({ artist }: { artist: Artist }) {
   );
 }
 
+/** Human-friendly submission date, e.g. "2 Jul 2026". */
+function formatSubmittedAt(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function makeColumns(stalls: StallsByEvent): ColumnDef<Artist>[] {
   return [
     {
@@ -745,12 +756,11 @@ function makeColumns(stalls: StallsByEvent): ColumnDef<Artist>[] {
       ),
     },
     {
-      accessorKey: "primaryCategory",
-      header: "Category",
-      enableSorting: false,
+      accessorKey: "submittedAt",
+      header: "Submitted",
       cell: ({ row }) => (
         <span className="text-muted-foreground">
-          {row.original.primaryCategory ?? "—"}
+          {formatSubmittedAt(row.original.submittedAt)}
         </span>
       ),
     },
