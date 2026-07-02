@@ -1,5 +1,10 @@
 import { sendEmail } from "~/lib/gmail.server";
-import { approvalEmail, confirmationEmail, rejectionEmail } from "~/lib/emails";
+import {
+  approvalEmail,
+  confirmationEmail,
+  rejectionEmail,
+  waitlistEmail,
+} from "~/lib/emails";
 import { getInvoiceSettings, saveInvoiceRecord } from "~/lib/invoices.server";
 import { attachInvoice } from "~/lib/payments.server";
 import { createInvoice } from "~/lib/xero-client.server";
@@ -160,12 +165,13 @@ export async function sendConfirmationEmail(
   }
 }
 
-// Best-effort rejection email with the admin's reason. Never let a mail failure
-// (or a missing Gmail connection) undo the rejection — it's already recorded.
+// Best-effort rejection email with the admin's optional reason. Never let a
+// mail failure (or a missing Gmail connection) undo the rejection — it's
+// already recorded.
 export async function sendRejectionEmail(
   env: Env,
   submissionId: string,
-  reason: string,
+  reason: string | null,
 ): Promise<void> {
   const row = await env.DB.prepare(
     "SELECT id, first_name, last_name, email FROM submissions WHERE id = ?",
@@ -186,5 +192,35 @@ export async function sendRejectionEmail(
     );
   } catch (err) {
     console.error("Rejection email failed (submission still rejected)", err);
+  }
+}
+
+// Best-effort waitlist email with the admin's optional reason. Never let a mail
+// failure (or a missing Gmail connection) undo the decision — it's already
+// recorded.
+export async function sendWaitlistEmail(
+  env: Env,
+  submissionId: string,
+  reason: string | null,
+): Promise<void> {
+  const row = await env.DB.prepare(
+    "SELECT id, first_name, last_name, email FROM submissions WHERE id = ?",
+  )
+    .bind(submissionId)
+    .first<{ id: string; first_name: string; last_name: string; email: string }>();
+  if (!row) return;
+
+  try {
+    await sendEmail(
+      env,
+      waitlistEmail({
+        to: row.email,
+        name: `${row.first_name} ${row.last_name}`.trim(),
+        reference: row.id,
+        reason,
+      }),
+    );
+  } catch (err) {
+    console.error("Waitlist email failed (submission still waitlisted)", err);
   }
 }

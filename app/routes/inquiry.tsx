@@ -58,6 +58,7 @@ import type { EventWithCounts, StallOption } from "~/lib/events";
 import {
   createInvoiceForSubmission,
   sendRejectionEmail,
+  sendWaitlistEmail,
 } from "~/lib/jobs.server";
 import {
   assignStall,
@@ -129,6 +130,7 @@ type ArtistDetail = Artist & {
   sharingStall: string | null;
   hasInsurance: string | null;
   additionalNotes: string | null;
+  waitlistReason: string | null;
   images: DetailImage[];
 };
 
@@ -176,19 +178,20 @@ export async function action({ request }: Route.ActionArgs) {
       if (!isApplicationStatus(status)) {
         return { ok: false, message: "Unknown status." };
       }
-      const reason = String(form.get("reason") ?? "").trim();
-      if (status === "rejected" && reason.length < 3) {
-        return { ok: false, message: "A reason is required to reject." };
-      }
+      // Optional decision note — attached to rejected/waitlisted only.
+      const reason = String(form.get("reason") ?? "").trim() || null;
+      const decisionReason =
+        status === "rejected" || status === "waitlisted" ? reason : null;
       const changed = await setApplicationStatus(
         env.DB,
         id,
         status,
         session.email,
-        status === "rejected" ? reason : null,
+        decisionReason,
       );
       if (changed) {
         if (status === "rejected") await sendRejectionEmail(env, id, reason);
+        if (status === "waitlisted") await sendWaitlistEmail(env, id, reason);
         const { name } = await submissionSubject(id);
         const phrase: Record<string, string> = {
           accepted: `${name} application approved`,
@@ -404,14 +407,35 @@ function Pill({
   );
 }
 
+// Reject and waitlist both prompt for an optional note before applying.
+const REASON_DECISIONS = {
+  rejected: {
+    title: "Reject submission",
+    verb: "rejecting",
+    confirm: "Confirm reject",
+    variant: "destructive" as const,
+    placeholder: "e.g. Portfolio below the minimum image count",
+  },
+  waitlisted: {
+    title: "Waitlist submission",
+    verb: "waitlisting",
+    confirm: "Confirm waitlist",
+    variant: "default" as const,
+    placeholder: "e.g. Strong application — holding for a later spot",
+  },
+} as const;
+
+type ReasonDecision = keyof typeof REASON_DECISIONS;
+
 function ApplicationStatusCell({ artist }: { artist: Artist }) {
   const { fetcher, submit, patchRow } = useRowAction();
-  const [rejectOpen, setRejectOpen] = useState(false);
+  // Rejecting or waitlisting opens a dialog for an optional note first.
+  const [reasonFor, setReasonFor] = useState<ReasonDecision | null>(null);
 
   function onChange(value: string) {
     if (value === artist.status) return;
-    if (value === "rejected") {
-      setRejectOpen(true);
+    if (value === "rejected" || value === "waitlisted") {
+      setReasonFor(value);
       return;
     }
     submit(
@@ -419,6 +443,10 @@ function ApplicationStatusCell({ artist }: { artist: Artist }) {
       { status: value as ApplicationStatus },
     );
   }
+
+  // Keep the closed dialog rendered with the last decision's copy so it doesn't
+  // flicker while animating out; `copy` is only visible when reasonFor is set.
+  const copy = REASON_DECISIONS[reasonFor ?? "rejected"];
 
   return (
     <>
@@ -441,48 +469,49 @@ function ApplicationStatusCell({ artist }: { artist: Artist }) {
         </SelectContent>
       </Select>
 
-      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+      <Dialog
+        open={reasonFor !== null}
+        onOpenChange={(open) => !open && setReasonFor(null)}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject submission</DialogTitle>
+            <DialogTitle>{copy.title}</DialogTitle>
             <DialogDescription>
-              Provide a reason for rejecting{" "}
+              Optionally add a reason for {copy.verb}{" "}
               <span className="font-medium text-foreground">{artist.name}</span>
-              . It is included in the notification email.
+              . If provided, it's included in the notification email.
             </DialogDescription>
           </DialogHeader>
           <fetcher.Form
             method="post"
             className="grid gap-4"
             onSubmit={() => {
-              patchRow(artist.id, { status: "rejected" });
-              setRejectOpen(false);
+              if (reasonFor) patchRow(artist.id, { status: reasonFor });
+              setReasonFor(null);
             }}
           >
             <input type="hidden" name="intent" value="set_status" />
             <input type="hidden" name="id" value={artist.id} />
-            <input type="hidden" name="status" value="rejected" />
+            <input type="hidden" name="status" value={reasonFor ?? ""} />
             <div className="grid gap-2">
-              <Label htmlFor={`reason-${artist.id}`}>Reason</Label>
+              <Label htmlFor={`reason-${artist.id}`}>Reason (optional)</Label>
               <Textarea
                 id={`reason-${artist.id}`}
                 name="reason"
-                required
-                minLength={3}
                 rows={4}
-                placeholder="e.g. Portfolio below the minimum image count"
+                placeholder={copy.placeholder}
               />
             </div>
             <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setRejectOpen(false)}
+                onClick={() => setReasonFor(null)}
               >
                 Cancel
               </Button>
-              <Button type="submit" variant="destructive">
-                Confirm reject
+              <Button type="submit" variant={copy.variant}>
+                {copy.confirm}
               </Button>
             </DialogFooter>
           </fetcher.Form>
@@ -1128,6 +1157,14 @@ function ViewProfileDialog({
             {data.rejectReason && (
               <Field label="Rejection reason">
                 <p className="text-sm text-destructive">{data.rejectReason}</p>
+              </Field>
+            )}
+
+            {data.waitlistReason && (
+              <Field label="Waitlist reason">
+                <p className="text-sm text-muted-foreground">
+                  {data.waitlistReason}
+                </p>
               </Field>
             )}
 

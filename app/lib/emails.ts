@@ -279,21 +279,52 @@ export function confirmationEmail(input: ConfirmationEmailInput): OutgoingEmail 
   };
 }
 
+/** Optional "Reason:" block — omitted entirely when no reason was supplied. */
+function reasonBlock(reason: string | null): string {
+  const text = (reason ?? "").trim();
+  if (!text) return "";
+  return `
+    <p style="margin:0 0 4px">Reason:</p>
+    <p style="margin:0 0 20px;padding:12px 14px;background:#f6f6f6;border-radius:8px;white-space:pre-wrap">${escapeHtml(text)}</p>`;
+}
+
 /**
- * Sent when a submission is rejected. Includes the reason the admin typed.
- * NOTE: placeholder wording — to be refined later.
+ * Sent when a submission is rejected. Includes the admin's reason only when one
+ * was supplied. NOTE: placeholder wording — to be refined later.
  */
 export function rejectionEmail(input: {
   to: string;
   name: string;
   reference: string;
-  reason: string;
+  reason: string | null;
 }): OutgoingEmail {
   const html = layout(`
     <p style="margin:16px 0 12px">Hi ${escapeHtml(input.name || "there")},</p>
     <p style="margin:0 0 12px">Thank you for your submission (<strong>${escapeHtml(input.reference)}</strong>). After review, it has <strong>not been accepted</strong> at this time.</p>
-    <p style="margin:0 0 4px">Reason:</p>
-    <p style="margin:0 0 20px;padding:12px 14px;background:#f6f6f6;border-radius:8px;white-space:pre-wrap">${escapeHtml(input.reason)}</p>
+    ${reasonBlock(input.reason)}
+  `);
+  return {
+    to: input.to,
+    subject: `Your Mellow Art submission ${input.reference}`,
+    html,
+    fromName: FROM_NAME,
+  };
+}
+
+/**
+ * Sent when a submission is waitlisted. Includes the admin's reason only when
+ * one was supplied. NOTE: placeholder wording — to be refined later.
+ */
+export function waitlistEmail(input: {
+  to: string;
+  name: string;
+  reference: string;
+  reason: string | null;
+}): OutgoingEmail {
+  const html = layout(`
+    <p style="margin:16px 0 12px">Hi ${escapeHtml(input.name || "there")},</p>
+    <p style="margin:0 0 12px">Thank you for your submission (<strong>${escapeHtml(input.reference)}</strong>). After review, you've been placed on our <strong>waitlist</strong>. If a spot opens up, we'll be in touch.</p>
+    ${reasonBlock(input.reason)}
   `);
   return {
     to: input.to,

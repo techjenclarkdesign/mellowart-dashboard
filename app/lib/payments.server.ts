@@ -13,8 +13,9 @@ interface InvoiceLookupRow {
 
 /**
  * Set the application decision. Reversible at any time (pending / accepted /
- * waitlisted / rejected) — admins can always override. A reason is stored only
- * for `rejected` and cleared otherwise.
+ * waitlisted / rejected) — admins can always override. The optional `reason`
+ * is stored against whichever decision it belongs to (`reject_reason` for
+ * rejected, `waitlist_reason` for waitlisted) and both are cleared otherwise.
  */
 export async function setApplicationStatus(
   db: D1Database,
@@ -28,12 +29,13 @@ export async function setApplicationStatus(
       `UPDATE submissions
          SET status = ?,
              reject_reason = CASE WHEN ? = 'rejected' THEN ? ELSE NULL END,
+             waitlist_reason = CASE WHEN ? = 'waitlisted' THEN ? ELSE NULL END,
              decided_by = ?,
              decided_at = datetime('now'),
              updated_at = datetime('now')
        WHERE id = ?`,
     )
-    .bind(status, status, reason ?? null, decidedBy, id)
+    .bind(status, status, reason ?? null, status, reason ?? null, decidedBy, id)
     .run();
   return (res.meta.changes ?? 0) > 0;
 }

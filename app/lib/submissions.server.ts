@@ -137,6 +137,7 @@ export interface SubmissionDetail {
   eventName: string | null;
   status: string;
   rejectReason: string | null;
+  waitlistReason: string | null;
   stallOptionId: string | null;
   stallTier: string | null;
   paymentStatus: string;
@@ -165,6 +166,7 @@ export async function getSubmissionDetail(
               s.sharing_stall AS sharingStall, s.has_insurance AS hasInsurance,
               s.event_id AS eventId, e.name AS eventName,
               s.status, s.reject_reason AS rejectReason,
+              s.waitlist_reason AS waitlistReason,
               s.stall_option_id AS stallOptionId, o.tier AS stallTier,
               s.payment_status AS paymentStatus, s.created_at AS submittedAt
        FROM submissions s
