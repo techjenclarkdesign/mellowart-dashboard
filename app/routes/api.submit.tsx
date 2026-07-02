@@ -53,8 +53,9 @@ function asBool(value: FormDataEntryValue | null): boolean {
 }
 
 /**
- * First non-empty text value across several field names. Lets us accept both
- * the API name and the native Webflow name (e.g. `secondEmail` / `buddy-email-01`).
+ * First non-empty text value across several field names. Lets us accept the
+ * API name, the native Webflow name, and the legacy alias (e.g. `buddyEmail` /
+ * `buddy-email-01` / `secondEmail`).
  */
 function pickOptional(form: FormData, ...keys: string[]): string | undefined {
   for (const k of keys) {
@@ -135,35 +136,65 @@ export async function action({ request }: Route.ActionArgs) {
     consentSharing: asBool(form.get("consentSharing")),
     consentSetupGuide: asBool(form.get("consentSetupGuide")),
     // Shared-stall second artist ("buddy") — only present when sharingStall
-    // is "Yes". Accept the API name OR the native Webflow `buddy-*` name so the
+    // is "Yes". The API field name is the camelCase `buddy*` form; the native
+    // Webflow `buddy-*` name and the legacy `second*` name are also accepted so
     // data flows however the form forwards it. buddy-email-02 is a confirm
     // field and is never stored.
-    secondFirstName: pickOptional(form, "secondFirstName", "buddy-first-name"),
-    secondLastName: pickOptional(form, "secondLastName", "buddy-last-name"),
-    secondEmail: pickOptional(form, "secondEmail", "buddy-email-01"),
+    secondFirstName: pickOptional(
+      form,
+      "buddyFirstName",
+      "buddy-first-name",
+      "secondFirstName",
+    ),
+    secondLastName: pickOptional(
+      form,
+      "buddyLastName",
+      "buddy-last-name",
+      "secondLastName",
+    ),
+    secondEmail: pickOptional(form, "buddyEmail", "buddy-email-01", "secondEmail"),
     secondAppliedBefore: pickOptional(
       form,
-      "secondAppliedBefore",
+      "buddyAppliedBefore",
       "buddy-first-timer",
+      "secondAppliedBefore",
     ),
-    secondBrandName: pickOptional(form, "secondBrandName", "buddy-brand-name"),
-    secondWebsite: pickOptional(form, "secondWebsite", "buddy-website"),
-    secondInstagram: pickOptional(form, "secondInstagram", "buddy-instagram"),
-    secondBio: pickOptional(form, "secondBio", "buddy-artist-bio"),
+    secondBrandName: pickOptional(
+      form,
+      "buddyBrandName",
+      "buddy-brand-name",
+      "secondBrandName",
+    ),
+    secondWebsite: pickOptional(
+      form,
+      "buddyWebsite",
+      "buddy-website",
+      "secondWebsite",
+    ),
+    secondInstagram: pickOptional(
+      form,
+      "buddyInstagram",
+      "buddy-instagram",
+      "secondInstagram",
+    ),
+    secondBio: pickOptional(form, "buddyBio", "buddy-artist-bio", "secondBio"),
     secondPrimaryCategory: pickOptional(
       form,
-      "secondPrimaryCategory",
+      "buddyPrimaryCategory",
       "buddy-category-01",
+      "secondPrimaryCategory",
     ),
     secondSecondaryCategory: pickOptional(
       form,
-      "secondSecondaryCategory",
+      "buddySecondaryCategory",
       "buddy-category-02",
+      "secondSecondaryCategory",
     ),
     secondProductDescription: pickOptional(
       form,
-      "secondProductDescription",
+      "buddyProductDescription",
       "buddy-product-info",
+      "secondProductDescription",
     ),
   });
   if (!parsed.success) {
@@ -185,8 +216,9 @@ export async function action({ request }: Route.ActionArgs) {
   // Optional second-artist portfolio (shared stall). Same rules as the main one.
   const secondPortfolio = pickEntry(
     form,
-    "secondPortfolio",
+    "buddyPortfolio",
     "buddy-portfolio-file",
+    "secondPortfolio",
   );
   const hasSecondPortfolio =
     secondPortfolio instanceof File && secondPortfolio.size > 0;

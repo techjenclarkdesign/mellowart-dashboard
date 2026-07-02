@@ -59,22 +59,23 @@ Only sent when the applicant answers **Yes** to `sharingStall` (the form's
 conditional "buddy" section). All are **optional** on the API — send them when
 sharing, omit them otherwise. They mirror the main applicant's text fields.
 
-Each field is accepted under **either** the API name **or** the native Webflow
-name in the "Webflow field" column below — send whichever your integration has.
+Each field is accepted under **any** of three names — the API name (`buddy*`),
+the native Webflow name, or the legacy `second*` name. Send whichever your
+integration has.
 
-| Field | Webflow field | Rules |
-| --- | --- | --- |
-| `secondFirstName` | `buddy-first-name` | 1–100 chars |
-| `secondLastName` | `buddy-last-name` | 1–100 chars |
-| `secondEmail` | `buddy-email-01` | valid email, ≤320 chars |
-| `secondAppliedBefore` | `buddy-first-timer` | 1–50 chars |
-| `secondBrandName` | `buddy-brand-name` | 1–200 chars |
-| `secondWebsite` | `buddy-website` | 1–300 chars |
-| `secondInstagram` | `buddy-instagram` | 1–120 chars |
-| `secondBio` | `buddy-artist-bio` | 1–5000 chars (no word-count check) |
-| `secondPrimaryCategory` | `buddy-category-01` | 1–100 chars |
-| `secondSecondaryCategory` | `buddy-category-02` | 1–100 chars |
-| `secondProductDescription` | `buddy-product-info` | 1–2000 chars |
+| Field | Webflow field | Legacy alias | Rules |
+| --- | --- | --- | --- |
+| `buddyFirstName` | `buddy-first-name` | `secondFirstName` | 1–100 chars |
+| `buddyLastName` | `buddy-last-name` | `secondLastName` | 1–100 chars |
+| `buddyEmail` | `buddy-email-01` | `secondEmail` | valid email, ≤320 chars |
+| `buddyAppliedBefore` | `buddy-first-timer` | `secondAppliedBefore` | 1–50 chars |
+| `buddyBrandName` | `buddy-brand-name` | `secondBrandName` | 1–200 chars |
+| `buddyWebsite` | `buddy-website` | `secondWebsite` | 1–300 chars |
+| `buddyInstagram` | `buddy-instagram` | `secondInstagram` | 1–120 chars |
+| `buddyBio` | `buddy-artist-bio` | `secondBio` | 1–5000 chars (no word-count check) |
+| `buddyPrimaryCategory` | `buddy-category-01` | `secondPrimaryCategory` | 1–100 chars |
+| `buddySecondaryCategory` | `buddy-category-02` | `secondSecondaryCategory` | 1–100 chars |
+| `buddyProductDescription` | `buddy-product-info` | `secondProductDescription` | 1–2000 chars |
 
 The buddy "confirm email" (`buddy-email-02`) is a client-side check only — do
 not send it; it is never stored.
@@ -120,7 +121,7 @@ so the application is filed under that event in the dashboard.
 | --- | --- | --- | --- |
 | `portfolio` | ✅ | exactly 1 | 1-page A4 portfolio (PDF or image) — see below |
 | `insurance` | optional | 0 or 1 | Certificate of Currency (PDF or image) |
-| `secondPortfolio` | optional | 0 or 1 | Second artist's portfolio (`buddy-portfolio-file`), shared stall only |
+| `buddyPortfolio` | optional | 0 or 1 | Second artist's portfolio (Webflow `buddy-portfolio-file`, legacy `secondPortfolio`), shared stall only |
 
 Per-file rules (apply to both):
 
@@ -188,6 +189,26 @@ curl -X POST https://mellow-cf.mellowartmarket.workers.dev/api/submit \
   -F "insurance=@insurance.pdf;type=application/pdf"
 ```
 
+When `sharingStall=Yes`, also attach the second artist's fields and portfolio
+(API `buddy*` names shown; the native Webflow `buddy-*` and legacy `second*`
+names are equally accepted):
+
+```bash
+  -F "sharingStall=Yes" \
+  -F "buddyFirstName=Milo" \
+  -F "buddyLastName=Buddy" \
+  -F "buddyEmail=milo@example.com" \
+  -F "buddyAppliedBefore=No" \
+  -F "buddyBrandName=Milo Studio" \
+  -F "buddyWebsite=https://milostudio.com" \
+  -F "buddyInstagram=@milostudio" \
+  -F "buddyBio=<second artist bio>" \
+  -F "buddyPrimaryCategory=Ceramics" \
+  -F "buddySecondaryCategory=Sculpture" \
+  -F "buddyProductDescription=Handmade ceramics" \
+  -F "buddyPortfolio=@buddy-portfolio.pdf;type=application/pdf"
+```
+
 ## Example — JavaScript (`fetch` + `FormData`)
 
 Run this from a server you control (so the key stays secret).
@@ -219,6 +240,24 @@ form.set("eventSlug", "mellow-debut-2025"); // optional: scope to event
 // Files (Blob/File with a correct type).
 form.set("portfolio", portfolioFile, "portfolio.pdf");      // required
 if (insuranceFile) form.set("insurance", insuranceFile, "insurance.pdf"); // optional
+
+// Shared stall: attach the second artist's fields + portfolio when sharingStall is "Yes".
+// (API `buddy*` names shown; the native Webflow `buddy-*` and legacy `second*` names work too.)
+if (sharing) {
+  form.set("sharingStall", "Yes");
+  form.set("buddyFirstName", "Milo");
+  form.set("buddyLastName", "Buddy");
+  form.set("buddyEmail", "milo@example.com");
+  form.set("buddyAppliedBefore", "No");
+  form.set("buddyBrandName", "Milo Studio");
+  form.set("buddyWebsite", "https://milostudio.com");
+  form.set("buddyInstagram", "@milostudio");
+  form.set("buddyBio", buddyBioText);
+  form.set("buddyPrimaryCategory", "Ceramics");
+  form.set("buddySecondaryCategory", "Sculpture");
+  form.set("buddyProductDescription", "Handmade ceramics");
+  form.set("buddyPortfolio", buddyPortfolioFile, "buddy-portfolio.pdf");
+}
 
 const res = await fetch(
   "https://mellow-cf.mellowartmarket.workers.dev/api/submit",
