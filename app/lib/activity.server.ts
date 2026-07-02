@@ -42,7 +42,25 @@ export async function logActivity(
 export async function listActivity(
   db: D1Database,
   limit = 50,
+  eventId?: string | null,
 ): Promise<ActivityEntry[]> {
+  // Scoped to an event, only entries tied to that event's submissions qualify.
+  if (eventId) {
+    const res = await db
+      .prepare(
+        `SELECT a.id, a.actor_email AS actorEmail, a.submission_id AS submissionId,
+                a.subject, a.type, a.message, a.created_at AS createdAt
+           FROM activity_log a
+           JOIN submissions s ON s.id = a.submission_id
+          WHERE s.event_id = ?
+          ORDER BY a.created_at DESC, a.id DESC
+          LIMIT ?`,
+      )
+      .bind(eventId, limit)
+      .all<ActivityEntry>();
+    return res.results ?? [];
+  }
+
   const res = await db
     .prepare(
       `SELECT id, actor_email AS actorEmail, submission_id AS submissionId,

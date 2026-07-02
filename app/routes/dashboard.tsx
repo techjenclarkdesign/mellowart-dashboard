@@ -1,3 +1,5 @@
+import { env } from "cloudflare:workers";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ArrowRight } from "lucide-react";
@@ -12,7 +14,16 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
+import { requireAdmin } from "~/lib/auth.server";
+import { listEventsWithCounts } from "~/lib/events.server";
 import { activityDot, formatRelative, type ActivityItem } from "~/lib/activity";
 import {
   APPLICATION_LABEL,
@@ -23,6 +34,12 @@ import { cn } from "~/lib/utils";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "Dashboard · Mellow" }];
+}
+
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAdmin(request);
+  const events = await listEventsWithCounts(env.DB);
+  return { events };
 }
 
 type Metric = "total" | "pending" | "accepted" | "rejected";
@@ -71,8 +88,9 @@ const BREAKDOWN_COLOR: Record<string, string> = {
   rejected: "#ef4444",
 };
 
-async function fetchDashboard(): Promise<DashboardData> {
-  const res = await fetch("/api/summary");
+async function fetchDashboard(eventId: string): Promise<DashboardData> {
+  const qs = eventId ? `?event=${encodeURIComponent(eventId)}` : "";
+  const res = await fetch(`/api/summary${qs}`);
   if (!res.ok) throw new Error("Failed to load dashboard");
   return res.json();
 }
@@ -108,10 +126,14 @@ function DeltaBadge({ delta, invert }: { delta: number | null; invert?: boolean 
   );
 }
 
-export default function Dashboard() {
+export default function Dashboard({ loaderData }: Route.ComponentProps) {
+  const { events } = loaderData;
+  // Scope the whole dashboard to one event, defaulting to the first (newest).
+  const [eventId, setEventId] = useState<string>(events[0]?.id ?? "");
+
   const { data, isPending, isError } = useQuery({
-    queryKey: ["summary"],
-    queryFn: fetchDashboard,
+    queryKey: ["summary", eventId],
+    queryFn: () => fetchDashboard(eventId),
     refetchInterval: 15000,
   });
 
@@ -124,11 +146,27 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Overview of incoming applications and their status.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Overview of incoming applications and their status.
+          </p>
+        </div>
+        {events.length > 0 && (
+          <Select value={eventId} onValueChange={setEventId}>
+            <SelectTrigger className="w-full sm:w-64">
+              <SelectValue placeholder="Select event" />
+            </SelectTrigger>
+            <SelectContent>
+              {events.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {e.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Summary cards */}

@@ -6,5 +6,6 @@ import { getDashboardData } from "~/lib/summary.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
-  return Response.json(await getDashboardData(env.DB));
+  const eventId = new URL(request.url).searchParams.get("event") || null;
+  return Response.json(await getDashboardData(env.DB, eventId));
 }
