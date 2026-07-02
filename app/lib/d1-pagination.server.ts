@@ -22,6 +22,12 @@ export interface D1ListConfig {
   sortColumns?: string[];
   /** Applied when no valid sort is requested. */
   defaultSort?: { field: string; dir: "asc" | "desc" };
+  /**
+   * Extra WHERE fragment AND-ed into every query (page + count), e.g.
+   * "archived_at IS NULL". MUST be developer-controlled with no bound params —
+   * never build it from request input.
+   */
+  extraWhere?: string;
 }
 
 interface CountRow {
@@ -55,6 +61,9 @@ export async function d1List<T>(
       }
     }
   }
+
+  // Developer-controlled scope (no bound params), e.g. "archived_at IS NULL".
+  if (config.extraWhere) where.push(config.extraWhere);
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 

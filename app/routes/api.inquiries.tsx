@@ -23,7 +23,7 @@ const LIST_CONFIG: D1ListConfig = {
     "event_id AS eventId, status, reject_reason AS rejectReason, " +
     "stall_option_id AS stallOptionId, payment_status AS paymentStatus, " +
     "invoice_url AS invoiceUrl, internal_notes AS internalNotes, " +
-    "created_at AS submittedAt",
+    "archived_at AS archivedAt, created_at AS submittedAt",
   searchColumns: ["first_name", "last_name", "email"],
   // Filter keys sent by the UI map 1:1 to these columns.
   filterColumns: ["status", "payment_status", "event_id", "stall_option_id"],
@@ -40,18 +40,32 @@ export async function loader({ request }: Route.LoaderArgs) {
     query.sort.field = SORT_FIELD_MAP[query.sort.field] ?? "created_at";
   }
 
+  // Archive is a list-visibility scope, not a real column — pull `view` out of
+  // the generic filters and map it to a WHERE fragment. The UI sends
+  // view=active by default (hide archived); clearing the filter ("All views")
+  // drops the key entirely, which shows everything.
+  const view = query.filters?.view;
+  if (query.filters) delete query.filters.view;
+  const archiveWhere =
+    view === "active"
+      ? "archived_at IS NULL"
+      : view === "archived"
+        ? "archived_at IS NOT NULL"
+        : undefined;
+  const config: D1ListConfig = { ...LIST_CONFIG, extraWhere: archiveWhere };
+
   // Copy-emails mode: every matching email for the current search/filters,
   // ignoring pagination. Returns { emails: string[] }.
   if (url.searchParams.get("emails") === "1") {
     const all = await d1List<{ email: string }>(
       env.DB,
       { ...query, page: 1, pageSize: 10_000 },
-      { ...LIST_CONFIG, columns: "email" },
+      { ...config, columns: "email" },
     );
     const emails = [...new Set(all.data.map((r) => r.email))];
     return Response.json({ emails });
   }
 
-  const result = await d1List(env.DB, query, LIST_CONFIG);
+  const result = await d1List(env.DB, query, config);
   return Response.json(result);
 }

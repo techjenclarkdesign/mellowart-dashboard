@@ -67,7 +67,7 @@ import {
   setPaymentStatus,
   startInvoicing,
 } from "~/lib/payments.server";
-import { setInternalNotes } from "~/lib/submissions.server";
+import { setArchived, setInternalNotes } from "~/lib/submissions.server";
 import { logActivity } from "~/lib/activity.server";
 import {
   APPLICATION_LABEL,
@@ -104,6 +104,7 @@ type Artist = {
   invoiceUrl: string | null;
   rejectReason: string | null;
   internalNotes: string | null;
+  archivedAt: string | null;
   submittedAt: string;
 };
 
@@ -309,6 +310,17 @@ export async function action({ request }: Route.ActionArgs) {
         : { ok: false, message: `${id} has no invoice to update.` };
     }
 
+    case "set_archived": {
+      const archived = String(form.get("archived") ?? "") === "1";
+      const changed = await setArchived(env.DB, id, archived);
+      return changed
+        ? {
+            ok: true,
+            message: archived ? `${id} archived.` : `${id} unarchived.`,
+          }
+        : { ok: false, message: `Could not update ${id}.` };
+    }
+
     case "set_notes": {
       const notes = String(form.get("notes") ?? "").trim();
       const changed = await setInternalNotes(env.DB, id, notes || null);
@@ -354,6 +366,21 @@ function useRowAction() {
     [queryClient],
   );
 
+  // Drop a row from every cached inquiries page (e.g. it no longer matches the
+  // current view after archive/unarchive). Reconciled by the invalidate below.
+  const removeRow = useCallback(
+    (id: string) => {
+      queryClient.setQueriesData<Paginated<Artist>>(
+        { queryKey: ["inquiries"] },
+        (old) =>
+          old && Array.isArray(old.data)
+            ? { ...old, data: old.data.filter((r) => r.id !== id) }
+            : old,
+      );
+    },
+    [queryClient],
+  );
+
   const submit = useCallback(
     (vars: Record<string, string>, patch?: Partial<Artist>) => {
       if (patch) patchRow(vars.id, patch);
@@ -376,7 +403,7 @@ function useRowAction() {
     }
   }, [fetcher.state, fetcher.data, queryClient]);
 
-  return { fetcher, submit, patchRow };
+  return { fetcher, submit, patchRow, removeRow };
 }
 
 /** One centered "Saving…" overlay while any row mutation is in flight. */
@@ -890,6 +917,15 @@ export default function Inquiry({ loaderData }: Route.ComponentProps) {
           value: e.id,
         })),
       },
+      {
+        // "All views" (the cleared state) shows both active + archived.
+        id: "view",
+        label: "views",
+        options: [
+          { label: "Active", value: "active" },
+          { label: "Archived", value: "archived" },
+        ],
+      },
     ];
 
     // Only meaningful once a single event is selected — stalls are per-event.
@@ -955,7 +991,10 @@ export default function Inquiry({ loaderData }: Route.ComponentProps) {
         searchPlaceholder="Search name or email…"
         filters={filters}
         defaultMode="table"
-        initialFilters={eventParam ? { event_id: eventParam } : undefined}
+        initialFilters={{
+          view: "active",
+          ...(eventParam ? { event_id: eventParam } : {}),
+        }}
         onQueryChange={onQueryChange}
         toolbarExtra={
           <Button variant="outline" size="sm" onClick={copyEmails}>
@@ -1040,6 +1079,18 @@ function ArtistRow({ artist }: { artist: Artist }) {
 
 function RowActions({ artist }: { artist: Artist }) {
   const [viewOpen, setViewOpen] = useState(false);
+  const { submit, removeRow } = useRowAction();
+  const archived = artist.archivedAt != null;
+
+  function toggleArchive() {
+    // Optimistically drop it from the current view; the refetch reconciles.
+    removeRow(artist.id);
+    submit({
+      intent: "set_archived",
+      id: artist.id,
+      archived: archived ? "0" : "1",
+    });
+  }
 
   return (
     <>
@@ -1054,6 +1105,9 @@ function RowActions({ artist }: { artist: Artist }) {
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
           <DropdownMenuItem onSelect={() => setViewOpen(true)}>
             View profile
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={toggleArchive}>
+            {archived ? "Unarchive" : "Archive"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -236,6 +236,27 @@ export async function getSubmissionDetail(
   return { ...row, images: images.results ?? [] };
 }
 
+/**
+ * Archive (hide from the default inquiries list) or unarchive a submission.
+ * Purely a visibility flag — leaves application/payment status untouched.
+ */
+export async function setArchived(
+  db: D1Database,
+  id: string,
+  archived: boolean,
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      `UPDATE submissions
+         SET archived_at = CASE WHEN ? THEN datetime('now') ELSE NULL END,
+             updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+    .bind(archived ? 1 : 0, id)
+    .run();
+  return (res.meta.changes ?? 0) > 0;
+}
+
 /** Set (or clear) the internal, admin-only notes on a submission. */
 export async function setInternalNotes(
   db: D1Database,
