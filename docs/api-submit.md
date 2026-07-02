@@ -53,6 +53,29 @@ All sent as `multipart/form-data` parts.
 | `consentSetupGuide` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 | `eventSlug` | optional | event **slug** (Webflow Item ID / local id also accepted) — see below |
 
+### Shared-stall second artist ("buddy")
+
+Only sent when the applicant answers **Yes** to `sharingStall` (the form's
+conditional "buddy" section). All are **optional** on the API — send them when
+sharing, omit them otherwise. They mirror the main applicant's text fields.
+
+| Field | Webflow field | Rules |
+| --- | --- | --- |
+| `secondFirstName` | `buddy-first-name` | 1–100 chars |
+| `secondLastName` | `buddy-last-name` | 1–100 chars |
+| `secondEmail` | `buddy-email-01` | valid email, ≤320 chars |
+| `secondAppliedBefore` | `buddy-first-timer` | 1–50 chars |
+| `secondBrandName` | `buddy-brand-name` | 1–200 chars |
+| `secondWebsite` | `buddy-website` | 1–300 chars |
+| `secondInstagram` | `buddy-instagram` | 1–120 chars |
+| `secondBio` | `buddy-artist-bio` | 1–5000 chars (no word-count check) |
+| `secondPrimaryCategory` | `buddy-category-01` | 1–100 chars |
+| `secondSecondaryCategory` | `buddy-category-02` | 1–100 chars |
+| `secondProductDescription` | `buddy-product-info` | 1–2000 chars |
+
+The buddy "confirm email" (`buddy-email-02`) is a client-side check only — do
+not send it; it is never stored.
+
 Notes:
 - `bio` has **two** checks: a character cap (≤5000) and a **word count of
   200–400 words** (words = whitespace-separated tokens). Both must pass.
@@ -94,6 +117,7 @@ so the application is filed under that event in the dashboard.
 | --- | --- | --- | --- |
 | `portfolio` | ✅ | exactly 1 | 1-page A4 portfolio (PDF or image) — see below |
 | `insurance` | optional | 0 or 1 | Certificate of Currency (PDF or image) |
+| `secondPortfolio` | optional | 0 or 1 | Second artist's portfolio (`buddy-portfolio-file`), shared stall only |
 
 Per-file rules (apply to both):
 

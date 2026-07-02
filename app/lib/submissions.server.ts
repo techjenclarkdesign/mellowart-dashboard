@@ -1,7 +1,7 @@
 import type { ArtistFields } from "~/lib/artist";
 
 export interface UploadFile {
-  kind: "profile" | "portfolio" | "insurance";
+  kind: "profile" | "portfolio" | "insurance" | "second_portfolio";
   data: ArrayBuffer;
   contentType: string;
   size: number;
@@ -59,8 +59,14 @@ export async function createArtistSubmission(
            product_description, additional_notes, consent_debut, consent_sharing,
            consent_setup_guide, first_stall_preference, second_stall_preference,
            offer_mini_if_unavailable, sharing_stall, has_insurance, event_id,
-           stall_option_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           stall_option_id,
+           second_artist_first_name, second_artist_last_name, second_artist_email,
+           second_artist_applied_before, second_artist_brand_name,
+           second_artist_website, second_artist_instagram, second_artist_bio,
+           second_artist_primary_category, second_artist_secondary_category,
+           second_artist_product_description)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -86,6 +92,17 @@ export async function createArtistSubmission(
         fields.hasInsurance,
         eventId,
         stallOptionId,
+        fields.secondFirstName ?? null,
+        fields.secondLastName ?? null,
+        fields.secondEmail ?? null,
+        fields.secondAppliedBefore ?? null,
+        fields.secondBrandName ?? null,
+        fields.secondWebsite ?? null,
+        fields.secondInstagram ?? null,
+        fields.secondBio ?? null,
+        fields.secondPrimaryCategory ?? null,
+        fields.secondSecondaryCategory ?? null,
+        fields.secondProductDescription ?? null,
       ),
     ...imageRows.map((r) =>
       db
@@ -103,7 +120,7 @@ export async function createArtistSubmission(
 
 export interface SubmissionImage {
   id: string;
-  kind: "profile" | "portfolio" | "insurance";
+  kind: "profile" | "portfolio" | "insurance" | "second_portfolio";
   key: string;
   sortOrder: number;
 }
@@ -142,6 +159,18 @@ export interface SubmissionDetail {
   stallTier: string | null;
   paymentStatus: string;
   submittedAt: string;
+  // Shared-stall second artist ("buddy") — null unless the applicant is sharing.
+  secondFirstName: string | null;
+  secondLastName: string | null;
+  secondEmail: string | null;
+  secondAppliedBefore: string | null;
+  secondBrandName: string | null;
+  secondWebsite: string | null;
+  secondInstagram: string | null;
+  secondBio: string | null;
+  secondPrimaryCategory: string | null;
+  secondSecondaryCategory: string | null;
+  secondProductDescription: string | null;
   images: SubmissionImage[];
 }
 
@@ -168,7 +197,18 @@ export async function getSubmissionDetail(
               s.status, s.reject_reason AS rejectReason,
               s.waitlist_reason AS waitlistReason,
               s.stall_option_id AS stallOptionId, o.tier AS stallTier,
-              s.payment_status AS paymentStatus, s.created_at AS submittedAt
+              s.payment_status AS paymentStatus, s.created_at AS submittedAt,
+              s.second_artist_first_name AS secondFirstName,
+              s.second_artist_last_name AS secondLastName,
+              s.second_artist_email AS secondEmail,
+              s.second_artist_applied_before AS secondAppliedBefore,
+              s.second_artist_brand_name AS secondBrandName,
+              s.second_artist_website AS secondWebsite,
+              s.second_artist_instagram AS secondInstagram,
+              s.second_artist_bio AS secondBio,
+              s.second_artist_primary_category AS secondPrimaryCategory,
+              s.second_artist_secondary_category AS secondSecondaryCategory,
+              s.second_artist_product_description AS secondProductDescription
        FROM submissions s
        LEFT JOIN events e ON e.id = s.event_id
        LEFT JOIN stall_options o ON o.id = s.stall_option_id

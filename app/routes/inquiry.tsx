@@ -110,7 +110,7 @@ type Artist = {
 // Full record (from /api/inquiries/:id).
 type DetailImage = {
   id: string;
-  kind: "profile" | "portfolio" | "insurance";
+  kind: "profile" | "portfolio" | "insurance" | "second_portfolio";
   key: string;
   sortOrder: number;
 };
@@ -131,6 +131,18 @@ type ArtistDetail = Artist & {
   hasInsurance: string | null;
   additionalNotes: string | null;
   waitlistReason: string | null;
+  // Shared-stall second artist ("buddy").
+  secondFirstName: string | null;
+  secondLastName: string | null;
+  secondEmail: string | null;
+  secondAppliedBefore: string | null;
+  secondBrandName: string | null;
+  secondWebsite: string | null;
+  secondInstagram: string | null;
+  secondBio: string | null;
+  secondPrimaryCategory: string | null;
+  secondSecondaryCategory: string | null;
+  secondProductDescription: string | null;
   images: DetailImage[];
 };
 
@@ -1076,6 +1088,19 @@ function ViewProfileDialog({
 
   const portfolio = data?.images.filter((i) => i.kind === "portfolio") ?? [];
   const insurance = data?.images.filter((i) => i.kind === "insurance") ?? [];
+  const secondPortfolio =
+    data?.images.filter((i) => i.kind === "second_portfolio") ?? [];
+  // Show the second-artist block whenever any buddy data came through.
+  const secondName = [data?.secondFirstName, data?.secondLastName]
+    .filter(Boolean)
+    .join(" ");
+  const hasSecondArtist = Boolean(
+    data &&
+      (secondName ||
+        data.secondEmail ||
+        data.secondBrandName ||
+        secondPortfolio.length),
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1191,6 +1216,75 @@ function ViewProfileDialog({
                 )}
               </div>
             </Field>
+
+            {hasSecondArtist && data && (
+              <div className="grid gap-4 rounded-lg border border-dashed p-4">
+                <div>
+                  <p className="text-sm font-semibold">Second artist</p>
+                  <p className="text-xs text-muted-foreground">
+                    Shared-stall applicant ({data.sharingStall ?? "sharing"}).
+                  </p>
+                </div>
+
+                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                  <Detail label="Name" value={secondName || "—"} />
+                  <Detail label="Email" value={data.secondEmail ?? "—"} />
+                  <Detail
+                    label="Applied before"
+                    value={data.secondAppliedBefore ?? "—"}
+                  />
+                  <Detail label="Brand" value={data.secondBrandName ?? "—"} />
+                  <Detail label="Website" value={data.secondWebsite ?? "—"} />
+                  <Detail label="Instagram" value={data.secondInstagram ?? "—"} />
+                  <Detail
+                    label="Primary category"
+                    value={data.secondPrimaryCategory ?? "—"}
+                  />
+                  <Detail
+                    label="Secondary category"
+                    value={data.secondSecondaryCategory ?? "—"}
+                  />
+                </dl>
+
+                {data.secondBio && (
+                  <Field label="Artist statement">
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {data.secondBio}
+                    </p>
+                  </Field>
+                )}
+
+                {data.secondProductDescription && (
+                  <Field label="Product description">
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {data.secondProductDescription}
+                    </p>
+                  </Field>
+                )}
+
+                <Field label="Documents">
+                  <div className="flex flex-wrap gap-2">
+                    {secondPortfolio.length > 0 ? (
+                      secondPortfolio.map((doc, i) => (
+                        <DocLink
+                          key={doc.id}
+                          href={`/api/files/${doc.key}`}
+                          label={
+                            secondPortfolio.length > 1
+                              ? `Portfolio ${i + 1}`
+                              : "Portfolio"
+                          }
+                        />
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        No portfolio uploaded.
+                      </span>
+                    )}
+                  </div>
+                </Field>
+              </div>
+            )}
           </div>
         )}
 

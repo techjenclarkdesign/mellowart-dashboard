@@ -109,6 +109,19 @@ export async function action({ request }: Route.ActionArgs) {
     consentDebut: asBool(form.get("consentDebut")),
     consentSharing: asBool(form.get("consentSharing")),
     consentSetupGuide: asBool(form.get("consentSetupGuide")),
+    // Shared-stall second artist ("buddy") — only present when sharingStall
+    // is "Yes". buddy-email-02 is a confirm field and is never stored.
+    secondFirstName: asOptional(form.get("secondFirstName")),
+    secondLastName: asOptional(form.get("secondLastName")),
+    secondEmail: asOptional(form.get("secondEmail")),
+    secondAppliedBefore: asOptional(form.get("secondAppliedBefore")),
+    secondBrandName: asOptional(form.get("secondBrandName")),
+    secondWebsite: asOptional(form.get("secondWebsite")),
+    secondInstagram: asOptional(form.get("secondInstagram")),
+    secondBio: asOptional(form.get("secondBio")),
+    secondPrimaryCategory: asOptional(form.get("secondPrimaryCategory")),
+    secondSecondaryCategory: asOptional(form.get("secondSecondaryCategory")),
+    secondProductDescription: asOptional(form.get("secondProductDescription")),
   });
   if (!parsed.success) {
     return bad(422, "Validation failed", parsed.error.flatten());
@@ -126,7 +139,16 @@ export async function action({ request }: Route.ActionArgs) {
   const insurance = form.get("insurance");
   const hasInsuranceFile = insurance instanceof File && insurance.size > 0;
 
-  for (const file of [portfolio, ...(hasInsuranceFile ? [insurance] : [])]) {
+  // Optional second-artist portfolio (shared stall). Same rules as the main one.
+  const secondPortfolio = form.get("secondPortfolio");
+  const hasSecondPortfolio =
+    secondPortfolio instanceof File && secondPortfolio.size > 0;
+
+  for (const file of [
+    portfolio,
+    ...(hasInsuranceFile ? [insurance] : []),
+    ...(hasSecondPortfolio ? [secondPortfolio] : []),
+  ]) {
     const err = validateDoc(file as File);
     if (err) return bad(422, `${(file as File).name || "file"}: ${err}`);
   }
@@ -146,6 +168,17 @@ export async function action({ request }: Route.ActionArgs) {
             data: await insurance.arrayBuffer(),
             contentType: insurance.type,
             size: insurance.size,
+            sortOrder: 0,
+          },
+        ]
+      : []),
+    ...(hasSecondPortfolio
+      ? [
+          {
+            kind: "second_portfolio" as const,
+            data: await secondPortfolio.arrayBuffer(),
+            contentType: secondPortfolio.type,
+            size: secondPortfolio.size,
             sortOrder: 0,
           },
         ]

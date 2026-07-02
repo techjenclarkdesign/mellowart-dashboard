@@ -32,6 +32,20 @@ export const ArtistFieldsSchema = z.object({
   consentDebut: z.literal(true),
   consentSharing: z.literal(true),
   consentSetupGuide: z.literal(true),
+  // Shared-stall second artist ("buddy") — the form's conditional section only
+  // sends these when `sharingStall` is "Yes", so all are optional here. Mirrors
+  // the main applicant's text fields.
+  secondFirstName: z.string().trim().min(1).max(100).optional(),
+  secondLastName: z.string().trim().min(1).max(100).optional(),
+  secondEmail: z.string().trim().email().max(320).optional(),
+  secondAppliedBefore: z.string().trim().min(1).max(50).optional(),
+  secondBrandName: z.string().trim().min(1).max(200).optional(),
+  secondWebsite: z.string().trim().min(1).max(300).optional(),
+  secondInstagram: z.string().trim().min(1).max(120).optional(),
+  secondBio: z.string().trim().min(1).max(5000).optional(),
+  secondPrimaryCategory: z.string().trim().min(1).max(100).optional(),
+  secondSecondaryCategory: z.string().trim().min(1).max(100).optional(),
+  secondProductDescription: z.string().trim().min(1).max(2000).optional(),
 });
 
 export type ArtistFields = z.infer<typeof ArtistFieldsSchema>;
