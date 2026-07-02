@@ -34,7 +34,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   return (
     <SidebarProvider>
       <AppSidebar email={loaderData.email} />
-      <SidebarInset>
+      {/* min-w-0 stops a wide child (e.g. a big table) from expanding the inset
+          past the viewport; content is capped to the available width instead. */}
+      <SidebarInset className="min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator
@@ -49,7 +51,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </BreadcrumbList>
           </Breadcrumb>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+        <div className="flex w-full min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
           <Outlet />
         </div>
       </SidebarInset>
