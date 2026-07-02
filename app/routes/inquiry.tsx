@@ -97,6 +97,7 @@ type Artist = {
   brandName: string | null;
   primaryCategory: string | null;
   secondaryCategory: string | null;
+  sharingStall: string | null;
   eventId: string | null;
   status: ApplicationStatus;
   stallOptionId: string | null;
@@ -821,6 +822,16 @@ function makeColumns(stalls: StallsByEvent): ColumnDef<Artist>[] {
       enableSorting: false,
       cell: ({ row }) => (
         <span className="text-muted-foreground">{row.original.brandName ?? "—"}</span>
+      ),
+    },
+    {
+      accessorKey: "sharingStall",
+      header: "Sharing table",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.sharingStall ?? "—"}
+        </span>
       ),
     },
     {

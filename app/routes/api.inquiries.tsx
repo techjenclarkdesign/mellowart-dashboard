@@ -20,6 +20,7 @@ const LIST_CONFIG: D1ListConfig = {
     "id, first_name AS firstName, last_name AS lastName, " +
     "(first_name || ' ' || last_name) AS name, email, brand_name AS brandName, " +
     "primary_category AS primaryCategory, secondary_category AS secondaryCategory, " +
+    "sharing_stall AS sharingStall, " +
     "event_id AS eventId, status, reject_reason AS rejectReason, " +
     "stall_option_id AS stallOptionId, payment_status AS paymentStatus, " +
     "invoice_url AS invoiceUrl, internal_notes AS internalNotes, " +
