@@ -9,7 +9,14 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Copy, Loader2, MoreHorizontal, Paperclip, StickyNote } from "lucide-react";
+import {
+  Copy,
+  Download,
+  Loader2,
+  MoreHorizontal,
+  Paperclip,
+  StickyNote,
+} from "lucide-react";
 import { Link, useFetcher, useFetchers, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
@@ -981,6 +988,20 @@ export default function Inquiry({ loaderData }: Route.ComponentProps) {
     }
   }, []);
 
+  // Export every submission matching the current filters/search as a CSV file.
+  // The server sets Content-Disposition, so a plain same-origin anchor download
+  // (auth cookie sent automatically) is enough.
+  const exportCsv = useCallback(() => {
+    const sp = listQueryToSearchParams(queryRef.current);
+    sp.set("format", "csv");
+    const a = document.createElement("a");
+    a.href = `/api/inquiries?${sp}`;
+    a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, []);
+
   return (
     <div className="flex flex-col gap-6">
       <RowActionOverlay />
@@ -1008,10 +1029,16 @@ export default function Inquiry({ loaderData }: Route.ComponentProps) {
         }}
         onQueryChange={onQueryChange}
         toolbarExtra={
-          <Button variant="outline" size="sm" onClick={copyEmails}>
-            <Copy className="size-4" />
-            Copy emails
-          </Button>
+          <>
+            <Button variant="outline" size="sm" onClick={copyEmails}>
+              <Copy className="size-4" />
+              Copy emails
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportCsv}>
+              <Download className="size-4" />
+              Export CSV
+            </Button>
+          </>
         }
         renderGridItem={(a) => <ArtistCard artist={a} stalls={stalls} />}
         renderListItem={(a) => <ArtistRow artist={a} />}

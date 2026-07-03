@@ -236,6 +236,156 @@ export async function getSubmissionDetail(
   return { ...row, images: images.results ?? [] };
 }
 
+/** One fully-resolved submission row for CSV export. Every column is always
+ * present (empty string / null when unset), so the export shape is stable. */
+export interface SubmissionExportRow {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  appliedBefore: string | null;
+  brandName: string | null;
+  website: string | null;
+  instagram: string | null;
+  bio: string;
+  primaryCategory: string | null;
+  secondaryCategory: string | null;
+  productDescription: string | null;
+  additionalNotes: string | null;
+  consentDebut: number;
+  consentSharing: number;
+  consentSetupGuide: number;
+  firstStallPreference: string | null;
+  secondStallPreference: string | null;
+  offerMiniIfUnavailable: string | null;
+  sharingStall: string | null;
+  hasInsurance: string | null;
+  eventId: string | null;
+  eventName: string | null;
+  status: string;
+  rejectReason: string | null;
+  waitlistReason: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  stallOptionId: string | null;
+  stallTier: string | null;
+  paymentStatus: string;
+  xeroInvoiceId: string | null;
+  invoiceUrl: string | null;
+  paidAt: string | null;
+  internalNotes: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  secondFirstName: string | null;
+  secondLastName: string | null;
+  secondEmail: string | null;
+  secondAppliedBefore: string | null;
+  secondBrandName: string | null;
+  secondWebsite: string | null;
+  secondInstagram: string | null;
+  secondBio: string | null;
+  secondPrimaryCategory: string | null;
+  secondSecondaryCategory: string | null;
+  secondProductDescription: string | null;
+}
+
+export interface SubmissionExportFilters {
+  search?: string;
+  status?: string;
+  paymentStatus?: string;
+  eventId?: string;
+  stallOptionId?: string;
+  view?: "active" | "archived";
+}
+
+/**
+ * Every submission matching the given search/filters, fully resolved (event name
+ * + stall tier labels) for CSV export. Mirrors the inquiries-list WHERE
+ * semantics; ignores pagination. Values are bound; column identifiers are
+ * developer-controlled. Capped for safety.
+ */
+export async function getSubmissionsForExport(
+  db: D1Database,
+  filters: SubmissionExportFilters,
+): Promise<SubmissionExportRow[]> {
+  const where: string[] = [];
+  const args: unknown[] = [];
+
+  if (filters.search) {
+    const like = `%${filters.search}%`;
+    where.push("(s.first_name LIKE ? OR s.last_name LIKE ? OR s.email LIKE ?)");
+    args.push(like, like, like);
+  }
+  const exact: [string, string | undefined][] = [
+    ["s.status", filters.status],
+    ["s.payment_status", filters.paymentStatus],
+    ["s.event_id", filters.eventId],
+    ["s.stall_option_id", filters.stallOptionId],
+  ];
+  for (const [col, value] of exact) {
+    if (value != null && value !== "") {
+      where.push(`${col} = ?`);
+      args.push(value);
+    }
+  }
+  if (filters.view === "active") where.push("s.archived_at IS NULL");
+  else if (filters.view === "archived") where.push("s.archived_at IS NOT NULL");
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const res = await db
+    .prepare(
+      `SELECT s.id, s.first_name AS firstName, s.last_name AS lastName, s.email,
+              s.applied_before AS appliedBefore, s.brand_name AS brandName,
+              s.website, s.instagram, s.bio,
+              s.primary_category AS primaryCategory,
+              s.secondary_category AS secondaryCategory,
+              s.product_description AS productDescription,
+              s.additional_notes AS additionalNotes,
+              s.consent_debut AS consentDebut, s.consent_sharing AS consentSharing,
+              s.consent_setup_guide AS consentSetupGuide,
+              COALESCE(fp.tier, s.first_stall_preference) AS firstStallPreference,
+              COALESCE(sp.tier, s.second_stall_preference) AS secondStallPreference,
+              s.offer_mini_if_unavailable AS offerMiniIfUnavailable,
+              s.sharing_stall AS sharingStall, s.has_insurance AS hasInsurance,
+              s.event_id AS eventId, e.name AS eventName,
+              s.status, s.reject_reason AS rejectReason,
+              s.waitlist_reason AS waitlistReason,
+              s.decided_by AS decidedBy, s.decided_at AS decidedAt,
+              s.stall_option_id AS stallOptionId, o.tier AS stallTier,
+              s.payment_status AS paymentStatus, s.xero_invoice_id AS xeroInvoiceId,
+              s.invoice_url AS invoiceUrl, s.paid_at AS paidAt,
+              s.internal_notes AS internalNotes, s.archived_at AS archivedAt,
+              s.created_at AS createdAt, s.updated_at AS updatedAt,
+              s.second_artist_first_name AS secondFirstName,
+              s.second_artist_last_name AS secondLastName,
+              s.second_artist_email AS secondEmail,
+              s.second_artist_applied_before AS secondAppliedBefore,
+              s.second_artist_brand_name AS secondBrandName,
+              s.second_artist_website AS secondWebsite,
+              s.second_artist_instagram AS secondInstagram,
+              s.second_artist_bio AS secondBio,
+              s.second_artist_primary_category AS secondPrimaryCategory,
+              s.second_artist_secondary_category AS secondSecondaryCategory,
+              s.second_artist_product_description AS secondProductDescription
+       FROM submissions s
+       LEFT JOIN events e ON e.id = s.event_id
+       LEFT JOIN stall_options o ON o.id = s.stall_option_id
+       LEFT JOIN stall_options fp
+              ON fp.event_id = s.event_id AND fp.slug = s.first_stall_preference
+       LEFT JOIN stall_options sp
+              ON sp.event_id = s.event_id AND sp.slug = s.second_stall_preference
+       ${whereSql}
+       ORDER BY s.created_at DESC
+       LIMIT 10000`,
+    )
+    .bind(...args)
+    .all<SubmissionExportRow>();
+
+  return res.results ?? [];
+}
+
 /**
  * Archive (hide from the default inquiries list) or unarchive a submission.
  * Purely a visibility flag — leaves application/payment status untouched.
