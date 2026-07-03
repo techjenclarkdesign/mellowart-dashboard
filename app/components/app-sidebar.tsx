@@ -4,6 +4,7 @@ import {
   Inbox,
   LayoutDashboard,
   LogOut,
+  Mail,
   Receipt,
   ShieldCheck,
   Users,
@@ -31,6 +32,7 @@ const nav = [
   { title: "Activity", url: "/activity", icon: Activity },
   { title: "Users", url: "/users", icon: Users },
   { title: "Invoice settings", url: "/invoice-settings", icon: Receipt },
+  { title: "Email templates", url: "/email-templates", icon: Mail },
 ];
 
 export function AppSidebar({ email }: { email?: string }) {

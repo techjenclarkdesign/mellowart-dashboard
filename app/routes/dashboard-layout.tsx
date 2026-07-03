@@ -20,6 +20,7 @@ const titles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/inquiry": "Inquiries",
   "/invoice-settings": "Invoice settings",
+  "/email-templates": "Email templates",
 };
 
 export async function loader({ request }: Route.LoaderArgs) {

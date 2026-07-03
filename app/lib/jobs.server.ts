@@ -1,10 +1,5 @@
 import { sendEmail } from "~/lib/gmail.server";
-import {
-  approvalEmail,
-  confirmationEmail,
-  rejectionEmail,
-  waitlistEmail,
-} from "~/lib/emails";
+import { renderTemplate } from "~/lib/email-templates.server";
 import { getInvoiceSettings, saveInvoiceRecord } from "~/lib/invoices.server";
 import { attachInvoice } from "~/lib/payments.server";
 import { createInvoice } from "~/lib/xero-client.server";
@@ -33,6 +28,10 @@ function friendlyDate(daysFromNow: number): string {
     "en-AU",
     { day: "numeric", month: "short", year: "numeric" },
   );
+}
+
+function money(amount: number | null, currency: string): string {
+  return amount == null ? "" : `${currency} ${amount.toFixed(2)}`;
 }
 
 // approve → invoicing → (this) create Xero invoice from DB config → awaiting_payment
@@ -104,22 +103,23 @@ export async function createInvoiceForSubmission(
   // Best-effort approval email with the invoice link. Never let a mail failure
   // (or a missing Gmail connection) undo the invoice — it's already created.
   try {
-    const name = `${row.first_name} ${row.last_name}`.trim();
+    const invCurrency = created.currency ?? currency;
     await sendEmail(
       env,
-      approvalEmail({
-        to: row.email,
-        name,
+      await renderTemplate(env.DB, "approval", {
+        name: `${row.first_name} ${row.last_name}`.trim(),
+        firstName: row.first_name,
+        lastName: row.last_name,
+        email: row.email,
         reference: row.id,
-        eventName: row.event_name,
+        eventName: row.event_name ?? "",
         invoiceUrl: created.onlineUrl,
-        amount: created.total ?? unitAmount,
-        currency: created.currency ?? currency,
+        amount: money(created.total ?? unitAmount, invCurrency),
         dueDate: friendlyDate(settings.dueDays),
-        bankAccountName: settings.bankAccountName,
-        bankBsb: settings.bankBsb,
-        bankAccountNumber: settings.bankAccountNumber,
-        confirmationFormUrl: settings.confirmationFormUrl,
+        bankAccountName: settings.bankAccountName ?? "",
+        bankBsb: settings.bankBsb ?? "",
+        bankAccountNumber: settings.bankAccountNumber ?? "",
+        confirmationFormUrl: settings.confirmationFormUrl ?? "",
       }),
     );
   } catch (err) {
@@ -134,12 +134,13 @@ export async function sendConfirmationEmail(
   submissionId: string,
 ): Promise<void> {
   const row = await env.DB.prepare(
-    `SELECT first_name, last_name, email, brand_name,
+    `SELECT id, first_name, last_name, email, brand_name,
             primary_category, secondary_category
        FROM submissions WHERE id = ?`,
   )
     .bind(submissionId)
     .first<{
+      id: string;
       first_name: string;
       last_name: string;
       email: string;
@@ -152,12 +153,15 @@ export async function sendConfirmationEmail(
   try {
     await sendEmail(
       env,
-      confirmationEmail({
-        to: row.email,
-        name: row.first_name,
-        brandName: row.brand_name,
-        primaryCategory: row.primary_category,
-        secondaryCategory: row.secondary_category,
+      await renderTemplate(env.DB, "confirmation", {
+        name: `${row.first_name} ${row.last_name}`.trim(),
+        firstName: row.first_name,
+        lastName: row.last_name,
+        email: row.email,
+        reference: row.id,
+        brandName: row.brand_name ?? "",
+        primaryCategory: row.primary_category ?? "",
+        secondaryCategory: row.secondary_category ?? "",
       }),
     );
   } catch (err) {
@@ -183,11 +187,13 @@ export async function sendRejectionEmail(
   try {
     await sendEmail(
       env,
-      rejectionEmail({
-        to: row.email,
+      await renderTemplate(env.DB, "rejection", {
         name: `${row.first_name} ${row.last_name}`.trim(),
+        firstName: row.first_name,
+        lastName: row.last_name,
+        email: row.email,
         reference: row.id,
-        reason,
+        reason: reason ?? "",
       }),
     );
   } catch (err) {
@@ -213,11 +219,13 @@ export async function sendWaitlistEmail(
   try {
     await sendEmail(
       env,
-      waitlistEmail({
-        to: row.email,
+      await renderTemplate(env.DB, "waitlist", {
         name: `${row.first_name} ${row.last_name}`.trim(),
+        firstName: row.first_name,
+        lastName: row.last_name,
+        email: row.email,
         reference: row.id,
-        reason,
+        reason: reason ?? "",
       }),
     );
   } catch (err) {

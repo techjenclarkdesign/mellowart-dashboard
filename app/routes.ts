@@ -20,6 +20,7 @@ export default [
     route("activity", "routes/activity.tsx"),
     route("users", "routes/users.tsx"),
     route("invoice-settings", "routes/invoice-settings.tsx"),
+    route("email-templates", "routes/email-templates.tsx"),
   ]),
 
   // JSON APIs (resource routes)
