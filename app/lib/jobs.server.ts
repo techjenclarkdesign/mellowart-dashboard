@@ -1,6 +1,10 @@
 import { sendEmail } from "~/lib/gmail.server";
 import { renderTemplate } from "~/lib/email-templates.server";
-import { getInvoiceSettings, saveInvoiceRecord } from "~/lib/invoices.server";
+import {
+  formatDueDate,
+  getInvoiceSettings,
+  saveInvoiceRecord,
+} from "~/lib/invoices.server";
 import { attachInvoice } from "~/lib/payments.server";
 import { createInvoice } from "~/lib/xero-client.server";
 
@@ -23,13 +27,6 @@ function isoDate(daysFromNow: number): string {
 }
 
 /** Friendly due date for the email, e.g. "15 Aug 2026". */
-function friendlyDate(daysFromNow: number): string {
-  return new Date(Date.now() + daysFromNow * 86_400_000).toLocaleDateString(
-    "en-AU",
-    { day: "numeric", month: "short", year: "numeric" },
-  );
-}
-
 function money(amount: number | null, currency: string): string {
   return amount == null ? "" : `${currency} ${amount.toFixed(2)}`;
 }
@@ -115,7 +112,7 @@ export async function createInvoiceForSubmission(
         eventName: row.event_name ?? "",
         invoiceUrl: created.onlineUrl,
         amount: money(created.total ?? unitAmount, invCurrency),
-        dueDate: friendlyDate(settings.dueDays),
+        dueDate: formatDueDate(settings.dueDays),
         bankAccountName: settings.bankAccountName ?? "",
         bankBsb: settings.bankBsb ?? "",
         bankAccountNumber: settings.bankAccountNumber ?? "",

@@ -183,6 +183,8 @@ function shell(bodyHtml: string, br: EmailBranding): string {
     )
     .join("");
   const footerText = escapeHtml(br.footerText).replace(/\n/g, "<br/>");
+  const footerBg = br.footerBg?.trim() || br.brandColor;
+  const footerLogo = br.footerLogoUrl?.trim() || br.logoUrl;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/></head>
 <body style="margin:0;background:#F5F5F0;padding:40px 16px;font-family:'Helvetica Neue',Arial,sans-serif;color:#2C2422">
   <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.06)">
@@ -190,8 +192,8 @@ function shell(bodyHtml: string, br: EmailBranding): string {
       <img src="${escapeHtml(br.logoUrl)}" alt="${escapeHtml(br.fromName)}" style="height:44px;width:auto"/>
     </div>
     <div style="padding:0 0 28px">${bodyHtml}</div>
-    <div style="background:${br.brandColor};padding:28px 40px;text-align:center">
-      <img src="${escapeHtml(br.logoUrl)}" alt="${escapeHtml(br.fromName)}" style="height:32px;width:auto;margin-bottom:14px;opacity:.9"/>
+    <div style="background:${footerBg};padding:28px 40px;text-align:center">
+      <img src="${escapeHtml(footerLogo)}" alt="${escapeHtml(br.fromName)}" style="height:32px;width:auto;margin-bottom:14px;opacity:.9"/>
       <div style="margin:12px 0">${social}</div>
       <p style="font-size:12px;color:#7A6E6C;line-height:1.7;margin:0"><a href="${escapeHtml(br.websiteUrl)}" style="color:#BEB5B2;text-decoration:none">${escapeHtml(br.websiteUrl)}</a><br/>${escapeHtml(br.contactEmail)}<br/><br/>${footerText}</p>
     </div>
@@ -299,7 +301,8 @@ export async function getBranding(db: D1Database): Promise<EmailBranding> {
     .prepare(
       `SELECT from_name AS fromName, logo_url AS logoUrl, brand_color AS brandColor,
               accent_color AS accentColor, button_color AS buttonColor,
-              header_bg AS headerBg, footer_text AS footerText,
+              header_bg AS headerBg, footer_bg AS footerBg,
+              footer_logo_url AS footerLogoUrl, footer_text AS footerText,
               contact_email AS contactEmail, website_url AS websiteUrl,
               instagram_url AS instagramUrl, facebook_url AS facebookUrl,
               tiktok_url AS tiktokUrl
@@ -317,13 +320,14 @@ export async function updateBranding(
     .prepare(
       `INSERT INTO email_branding
          (id, from_name, logo_url, brand_color, accent_color, button_color,
-          header_bg, footer_text, contact_email, website_url,
-          instagram_url, facebook_url, tiktok_url, updated_at)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          header_bg, footer_bg, footer_logo_url, footer_text, contact_email,
+          website_url, instagram_url, facebook_url, tiktok_url, updated_at)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(id) DO UPDATE SET
          from_name = excluded.from_name, logo_url = excluded.logo_url,
          brand_color = excluded.brand_color, accent_color = excluded.accent_color,
          button_color = excluded.button_color, header_bg = excluded.header_bg,
+         footer_bg = excluded.footer_bg, footer_logo_url = excluded.footer_logo_url,
          footer_text = excluded.footer_text, contact_email = excluded.contact_email,
          website_url = excluded.website_url, instagram_url = excluded.instagram_url,
          facebook_url = excluded.facebook_url, tiktok_url = excluded.tiktok_url,
@@ -336,6 +340,8 @@ export async function updateBranding(
       br.accentColor,
       br.buttonColor,
       br.headerBg,
+      br.footerBg,
+      br.footerLogoUrl,
       br.footerText,
       br.contactEmail,
       br.websiteUrl,

@@ -27,6 +27,14 @@ const DEFAULT_SETTINGS: InvoiceSettings = {
   confirmationFormUrl: null,
 };
 
+/** Human-friendly payment due date, `dueDays` from now (matches the email copy). */
+export function formatDueDate(daysFromNow: number): string {
+  return new Date(Date.now() + daysFromNow * 86_400_000).toLocaleDateString(
+    "en-AU",
+    { day: "numeric", month: "short", year: "numeric" },
+  );
+}
+
 export async function getInvoiceSettings(
   db: D1Database,
 ): Promise<InvoiceSettings> {

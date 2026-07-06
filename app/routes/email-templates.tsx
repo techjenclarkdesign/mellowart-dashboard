@@ -57,6 +57,7 @@ import {
   updateBranding,
 } from "~/lib/email-templates.server";
 import { getGoogleTokens } from "~/lib/google-tokens.server";
+import { formatDueDate, getInvoiceSettings } from "~/lib/invoices.server";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "Email templates · Mellow" }];
@@ -107,6 +108,8 @@ function brandingFromForm(form: FormData): EmailBranding {
     accentColor: s("accentColor"),
     buttonColor: s("buttonColor"),
     headerBg: s("headerBg"),
+    footerBg: s("footerBg"),
+    footerLogoUrl: s("footerLogoUrl"),
     footerText: String(form.get("footerText") ?? ""),
     contactEmail: s("contactEmail"),
     websiteUrl: s("websiteUrl"),
@@ -114,6 +117,27 @@ function brandingFromForm(form: FormData): EmailBranding {
     facebookUrl: s("facebookUrl"),
     tiktokUrl: s("tiktokUrl"),
   };
+}
+
+/**
+ * Merge context for previews / test sends. Starts from the sample values, then
+ * — for the approval email — overlays the real saved invoice settings (bank
+ * details, confirmation form, payment due date) so the preview faithfully shows
+ * what recipients actually receive rather than placeholders.
+ */
+async function previewContext(
+  key: TemplateKey,
+): Promise<Record<string, string>> {
+  const ctx = sampleContext(key);
+  if (key === "approval") {
+    const s = await getInvoiceSettings(env.DB);
+    ctx.bankAccountName = s.bankAccountName ?? "";
+    ctx.bankBsb = s.bankBsb ?? "";
+    ctx.bankAccountNumber = s.bankAccountNumber ?? "";
+    ctx.confirmationFormUrl = s.confirmationFormUrl ?? "";
+    ctx.dueDate = formatDueDate(s.dueDays);
+  }
+  return ctx;
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -130,7 +154,7 @@ export async function action({ request }: Route.ActionArgs) {
       const branding = brandingJson
         ? (JSON.parse(String(brandingJson)) as EmailBranding)
         : await getBranding(env.DB);
-      const rendered = renderContent(content, branding, sampleContext(key));
+      const rendered = renderContent(content, branding, await previewContext(key));
       return {
         ok: true,
         intent: "preview" as const,
@@ -159,7 +183,7 @@ export async function action({ request }: Route.ActionArgs) {
       if (!isTemplateKey(key)) return { ok: false, message: "Unknown template." };
       const content = parseContent(form);
       const branding = await getBranding(env.DB);
-      const rendered = renderContent(content, branding, sampleContext(key));
+      const rendered = renderContent(content, branding, await previewContext(key));
       await sendEmail(env, {
         to: session.email,
         subject: `[TEST] ${rendered.subject}`,
@@ -795,6 +819,48 @@ function BrandingEditor({
     </Field>
   );
 
+  // A logo URL input with a live thumbnail rendered on the background it will
+  // actually sit on, so a pasted URL is reflected immediately.
+  const logoField = (
+    key: "logoUrl" | "footerLogoUrl",
+    label: string,
+    bg: string,
+    placeholder?: string,
+  ) => {
+    const url = branding[key];
+    return (
+      <Field label={label}>
+        <div className="flex items-center gap-3">
+          <div
+            className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded border"
+            style={{ background: bg }}
+          >
+            {url ? (
+              <img
+                src={url}
+                alt=""
+                className="max-h-10 max-w-12 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.visibility = "hidden";
+                }}
+                onLoad={(e) => {
+                  e.currentTarget.style.visibility = "visible";
+                }}
+              />
+            ) : (
+              <span className="text-muted-foreground text-[10px]">No logo</span>
+            )}
+          </div>
+          <Input
+            value={url}
+            onChange={(e) => set({ [key]: e.target.value })}
+            placeholder={placeholder}
+          />
+        </div>
+      </Field>
+    );
+  };
+
   return (
     <Card className="max-w-2xl">
       <CardHeader>
@@ -818,12 +884,7 @@ function BrandingEditor({
             />
           </Field>
         </div>
-        <Field label="Logo URL">
-          <Input
-            value={branding.logoUrl}
-            onChange={(e) => set({ logoUrl: e.target.value })}
-          />
-        </Field>
+        {logoField("logoUrl", "Logo URL", branding.headerBg)}
         <div className="grid gap-4 sm:grid-cols-2">
           {colorField("brandColor", "Brand / hero background")}
           {colorField("accentColor", "Accent (pill)")}
@@ -855,6 +916,15 @@ function BrandingEditor({
               onChange={(e) => set({ tiktokUrl: e.target.value })}
             />
           </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {logoField(
+            "footerLogoUrl",
+            "Footer logo URL",
+            branding.footerBg || branding.brandColor,
+            "Light/inverted logo for the dark footer",
+          )}
+          {colorField("footerBg", "Footer background")}
         </div>
         <Field label="Footer text">
           <Textarea
@@ -888,6 +958,8 @@ function brandingToForm(b: EmailBranding): Record<string, string> {
     accentColor: b.accentColor,
     buttonColor: b.buttonColor,
     headerBg: b.headerBg,
+    footerBg: b.footerBg,
+    footerLogoUrl: b.footerLogoUrl,
     footerText: b.footerText,
     contactEmail: b.contactEmail,
     websiteUrl: b.websiteUrl,

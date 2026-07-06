@@ -173,10 +173,12 @@ export function newBlock(type: BlockType): EmailBlock {
 export interface EmailBranding {
   fromName: string;
   logoUrl: string;
-  brandColor: string; // dark brand / hero + footer background
+  brandColor: string; // dark brand / hero background
   accentColor: string; // pill / highlight
   buttonColor: string;
   headerBg: string;
+  footerBg: string; // footer background (falls back to brandColor)
+  footerLogoUrl: string; // footer logo — use a light/inverted variant (falls back to logoUrl)
   footerText: string;
   contactEmail: string;
   websiteUrl: string;
@@ -193,6 +195,9 @@ export const DEFAULT_BRANDING: EmailBranding = {
   accentColor: "#F2C4CE",
   buttonColor: "#2C2422",
   headerBg: "#FFFDF2",
+  footerBg: "#2C2422",
+  footerLogoUrl:
+    "https://cdn.prod.website-files.com/6a223b24e44ab35ad710d94d/6a223b24e44ab35ad710d9a3_image%2030.webp",
   footerText:
     "This is an automated message from Mellow Art Market.\n© 2026 Mellow Art Market · Melbourne, Australia",
   contactEmail: "mellowartmarket@gmail.com",
@@ -220,33 +225,32 @@ const COMMON_TAGS: MergeTag[] = [
   { tag: "reference", label: "Submission reference", sample: "ART-9F3AB2C1" },
 ];
 
+// Every template exposes the same full catalog of merge tags, so the editor's
+// click-to-copy tag palette is identical across all tabs. A tag a given template
+// doesn't populate simply interpolates to empty (or is guarded by hideIfEmpty),
+// so listing them all everywhere is harmless.
+export const ALL_MERGE_TAGS: MergeTag[] = [
+  ...COMMON_TAGS,
+  { tag: "eventName", label: "Event name", sample: "Mellow Art Market — Spring" },
+  { tag: "invoiceUrl", label: "Invoice / pay link", sample: "https://pay.example.com/inv/123" },
+  { tag: "amount", label: "Amount (formatted)", sample: "AUD 220.00" },
+  { tag: "dueDate", label: "Payment due date", sample: "15 Aug 2026" },
+  { tag: "bankAccountName", label: "Bank account name", sample: "Mellow Art Market" },
+  { tag: "bankBsb", label: "Bank BSB", sample: "063-000" },
+  { tag: "bankAccountNumber", label: "Bank account number", sample: "1234 5678" },
+  { tag: "confirmationFormUrl", label: "Confirmation form URL", sample: "https://forms.example.com/paid" },
+  { tag: "contactEmail", label: "Contact email", sample: "mellowartmarket@gmail.com" },
+  { tag: "brandName", label: "Brand name", sample: "Analytical Engines" },
+  { tag: "primaryCategory", label: "Primary category", sample: "Ceramics" },
+  { tag: "secondaryCategory", label: "Secondary category", sample: "Jewellery" },
+  { tag: "reason", label: "Reason (optional)", sample: "We had limited spots this round." },
+];
+
 export const MERGE_TAGS: Record<TemplateKey, MergeTag[]> = {
-  approval: [
-    ...COMMON_TAGS,
-    { tag: "eventName", label: "Event name", sample: "Mellow Art Market — Spring" },
-    { tag: "invoiceUrl", label: "Invoice / pay link", sample: "https://pay.example.com/inv/123" },
-    { tag: "amount", label: "Amount (formatted)", sample: "AUD 220.00" },
-    { tag: "dueDate", label: "Payment due date", sample: "15 Aug 2026" },
-    { tag: "bankAccountName", label: "Bank account name", sample: "Mellow Art Market" },
-    { tag: "bankBsb", label: "Bank BSB", sample: "063-000" },
-    { tag: "bankAccountNumber", label: "Bank account number", sample: "1234 5678" },
-    { tag: "confirmationFormUrl", label: "Confirmation form URL", sample: "https://forms.example.com/paid" },
-    { tag: "contactEmail", label: "Contact email", sample: "mellowartmarket@gmail.com" },
-  ],
-  confirmation: [
-    ...COMMON_TAGS,
-    { tag: "brandName", label: "Brand name", sample: "Analytical Engines" },
-    { tag: "primaryCategory", label: "Primary category", sample: "Ceramics" },
-    { tag: "secondaryCategory", label: "Secondary category", sample: "Jewellery" },
-  ],
-  rejection: [
-    ...COMMON_TAGS,
-    { tag: "reason", label: "Reason (optional)", sample: "We had limited spots this round." },
-  ],
-  waitlist: [
-    ...COMMON_TAGS,
-    { tag: "reason", label: "Reason (optional)", sample: "You're next in line if a spot opens." },
-  ],
+  approval: ALL_MERGE_TAGS,
+  confirmation: ALL_MERGE_TAGS,
+  rejection: ALL_MERGE_TAGS,
+  waitlist: ALL_MERGE_TAGS,
 };
 
 // ---------------------------------------------------------------------------
