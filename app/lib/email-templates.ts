@@ -232,6 +232,7 @@ const COMMON_TAGS: MergeTag[] = [
 export const ALL_MERGE_TAGS: MergeTag[] = [
   ...COMMON_TAGS,
   { tag: "eventName", label: "Event name", sample: "Mellow Art Market — Spring" },
+  { tag: "stallType", label: "Stall type", sample: "Full table" },
   { tag: "invoiceUrl", label: "Invoice / pay link", sample: "https://pay.example.com/inv/123" },
   { tag: "amount", label: "Amount (formatted)", sample: "AUD 220.00" },
   { tag: "dueDate", label: "Payment due date", sample: "15 Aug 2026" },
@@ -342,8 +343,8 @@ export const DEFAULT_TEMPLATES: Record<TemplateKey, TemplateContent> = {
         label: "Application Summary",
         rows: [
           { label: "Brand Name", value: "{{brandName}}" },
-          { label: "Primary Category", value: "{{primaryCategory}}" },
-          { label: "Secondary Category", value: "{{secondaryCategory}}" },
+          { label: "Event", value: "{{eventName}}" },
+          { label: "Stall Type", value: "{{stallType}}" },
         ],
       }),
       b({
