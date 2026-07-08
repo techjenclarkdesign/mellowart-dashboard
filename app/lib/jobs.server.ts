@@ -130,18 +130,21 @@ export async function sendConfirmationEmail(
   env: Env,
   submissionId: string,
 ): Promise<void> {
-  // Resolve the event name and the applicant's requested stall type (their first
-  // stall preference, a slug resolved to the option's tier label — the assigned
-  // stall_option_id is still null at submission time).
+  // Resolve the event name and the applicant's requested stall types (their
+  // first + second stall preferences, slugs resolved to the option tier labels —
+  // the assigned stall_option_id is still null at submission time).
   const row = await env.DB.prepare(
     `SELECT s.id, s.first_name, s.last_name, s.email, s.brand_name,
             s.primary_category, s.secondary_category,
             e.name AS event_name,
-            COALESCE(fp.tier, s.first_stall_preference) AS stall_type
+            COALESCE(fp.tier, s.first_stall_preference) AS stall_type,
+            COALESCE(sp.tier, s.second_stall_preference) AS second_stall_type
        FROM submissions s
        LEFT JOIN events e ON e.id = s.event_id
        LEFT JOIN stall_options fp
               ON fp.event_id = s.event_id AND fp.slug = s.first_stall_preference
+       LEFT JOIN stall_options sp
+              ON sp.event_id = s.event_id AND sp.slug = s.second_stall_preference
       WHERE s.id = ?`,
   )
     .bind(submissionId)
@@ -155,6 +158,7 @@ export async function sendConfirmationEmail(
       secondary_category: string | null;
       event_name: string | null;
       stall_type: string | null;
+      second_stall_type: string | null;
     }>();
   if (!row) return;
 
@@ -170,6 +174,7 @@ export async function sendConfirmationEmail(
         brandName: row.brand_name ?? "",
         eventName: row.event_name ?? "",
         stallType: row.stall_type ?? "",
+        secondStallType: row.second_stall_type ?? "",
         primaryCategory: row.primary_category ?? "",
         secondaryCategory: row.secondary_category ?? "",
       }),
