@@ -42,7 +42,7 @@ export const ArtistFieldsSchema = z.object({
   secondBrandName: z.string().trim().min(1).max(200).optional(),
   secondWebsite: z.string().trim().min(1).max(300).optional(),
   secondInstagram: z.string().trim().min(1).max(120).optional(),
-  secondBio: z.string().trim().min(1).max(5000).optional(),
+  secondBio: z.string().trim().min(1).max(10_000).optional(),
   secondPrimaryCategory: z.string().trim().min(1).max(100).optional(),
   secondSecondaryCategory: z.string().trim().min(1).max(100).optional(),
   secondProductDescription: z.string().trim().min(1).max(2000).optional(),

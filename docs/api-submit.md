@@ -72,7 +72,7 @@ integration has.
 | `buddyBrandName` | `buddy-brand-name` | `secondBrandName` | 1–200 chars |
 | `buddyWebsite` | `buddy-website` | `secondWebsite` | 1–300 chars |
 | `buddyInstagram` | `buddy-instagram` | `secondInstagram` | 1–120 chars |
-| `buddyBio` | `buddy-artist-bio` | `secondBio` | 1–5000 chars |
+| `buddyBio` | `buddy-artist-bio` | `secondBio` | 1–10000 chars |
 | `buddyPrimaryCategory` | `buddy-category-01` | `secondPrimaryCategory` | 1–100 chars |
 | `buddySecondaryCategory` | `buddy-category-02` | `secondSecondaryCategory` | 1–100 chars |
 | `buddyProductDescription` | `buddy-product-info` | `secondProductDescription` | 1–2000 chars |
