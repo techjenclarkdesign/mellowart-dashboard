@@ -30,24 +30,24 @@ All sent as `multipart/form-data` parts.
 
 | Field | Required | Rules |
 | --- | --- | --- |
-| `firstName` | ✅ | 1–100 chars |
-| `lastName` | ✅ | 1–100 chars |
-| `email` | ✅ | valid email, ≤320 chars |
+| `firstName` | ✅ | non-empty |
+| `lastName` | ✅ | non-empty |
+| `email` | ✅ | valid email |
 | `confirmEmail` | optional | re-enter email — if sent, must equal `email` (case-insensitive); never stored |
-| `appliedBefore` | ✅ | 1–50 chars (e.g. "Yes" / "No") |
-| `brandName` | ✅ | 1–200 chars |
-| `website` | ✅ | 1–300 chars (send `N/A` if none) |
-| `instagram` | ✅ | 1–120 chars (e.g. `@brand`) |
-| `bio` | ✅ | 1–10000 chars |
-| `primaryCategory` | ✅ | 1–100 chars |
-| `secondaryCategory` | ✅ | 1–100 chars |
-| `productDescription` | ✅ | 1–2000 chars |
-| `additionalNotes` | optional | ≤5000 chars |
-| `firstStallPreference` | ✅ | 1–100 chars — chosen stall's **slug** (see below) |
-| `secondStallPreference` | ✅ | 1–100 chars — chosen stall's **slug** (see below) |
-| `offerMiniIfUnavailable` | ✅ | 1–50 chars (e.g. "Yes" / "No") |
-| `sharingStall` | ✅ | 1–50 chars (e.g. "Yes" / "No") |
-| `hasInsurance` | ✅ | 1–50 chars (e.g. "Yes" / "No") |
+| `appliedBefore` | ✅ | non-empty (e.g. "Yes" / "No") |
+| `brandName` | ✅ | non-empty |
+| `website` | ✅ | non-empty (send `N/A` if none) |
+| `instagram` | ✅ | non-empty (e.g. `@brand`) |
+| `bio` | ✅ | non-empty |
+| `primaryCategory` | ✅ | non-empty |
+| `secondaryCategory` | ✅ | non-empty |
+| `productDescription` | ✅ | non-empty |
+| `additionalNotes` | optional | any length |
+| `firstStallPreference` | ✅ | non-empty — chosen stall's **slug** (see below) |
+| `secondStallPreference` | ✅ | non-empty — chosen stall's **slug** (see below) |
+| `offerMiniIfUnavailable` | ✅ | non-empty (e.g. "Yes" / "No") |
+| `sharingStall` | ✅ | non-empty (e.g. "Yes" / "No") |
+| `hasInsurance` | ✅ | non-empty (e.g. "Yes" / "No") |
 | `consentDebut` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 | `consentSharing` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
 | `consentSetupGuide` | ✅ | must be truthy — `true` / `on` / `1` / `yes` |
@@ -65,23 +65,24 @@ integration has.
 
 | Field | Webflow field | Legacy alias | Rules |
 | --- | --- | --- | --- |
-| `buddyFirstName` | `buddy-first-name` | `secondFirstName` | 1–100 chars |
-| `buddyLastName` | `buddy-last-name` | `secondLastName` | 1–100 chars |
-| `buddyEmail` | `buddy-email-01` | `secondEmail` | valid email, ≤320 chars |
-| `buddyAppliedBefore` | `buddy-first-timer` | `secondAppliedBefore` | 1–50 chars |
-| `buddyBrandName` | `buddy-brand-name` | `secondBrandName` | 1–200 chars |
-| `buddyWebsite` | `buddy-website` | `secondWebsite` | 1–300 chars |
-| `buddyInstagram` | `buddy-instagram` | `secondInstagram` | 1–120 chars |
-| `buddyBio` | `buddy-artist-bio` | `secondBio` | 1–10000 chars |
-| `buddyPrimaryCategory` | `buddy-category-01` | `secondPrimaryCategory` | 1–100 chars |
-| `buddySecondaryCategory` | `buddy-category-02` | `secondSecondaryCategory` | 1–100 chars |
-| `buddyProductDescription` | `buddy-product-info` | `secondProductDescription` | 1–2000 chars |
+| `buddyFirstName` | `buddy-first-name` | `secondFirstName` | non-empty |
+| `buddyLastName` | `buddy-last-name` | `secondLastName` | non-empty |
+| `buddyEmail` | `buddy-email-01` | `secondEmail` | valid email |
+| `buddyAppliedBefore` | `buddy-first-timer` | `secondAppliedBefore` | non-empty |
+| `buddyBrandName` | `buddy-brand-name` | `secondBrandName` | non-empty |
+| `buddyWebsite` | `buddy-website` | `secondWebsite` | non-empty |
+| `buddyInstagram` | `buddy-instagram` | `secondInstagram` | non-empty |
+| `buddyBio` | `buddy-artist-bio` | `secondBio` | non-empty |
+| `buddyPrimaryCategory` | `buddy-category-01` | `secondPrimaryCategory` | non-empty |
+| `buddySecondaryCategory` | `buddy-category-02` | `secondSecondaryCategory` | non-empty |
+| `buddyProductDescription` | `buddy-product-info` | `secondProductDescription` | non-empty |
 
 The buddy "confirm email" (`buddy-email-02`) is a client-side check only — do
 not send it; it is never stored.
 
 Notes:
-- `bio` is capped at **10000 characters**.
+- Text fields have **no maximum length** — required fields just need to be
+  non-empty after trimming. (Files still have size/type limits; see below.)
 - The three consent flags are mandatory and must be truthy. Accepted truthy
   strings: `true`, `on`, `1`, `yes` (case-insensitive). Anything else counts as
   `false` and the request is rejected.
@@ -170,7 +171,7 @@ curl -X POST https://mellow-cf.mellowartmarket.workers.dev/api/submit \
   -F "brandName=Aria Studio" \
   -F "website=https://ariastudio.com" \
   -F "instagram=@ariastudio" \
-  -F "bio=<bio here, up to 10000 chars>" \
+  -F "bio=<artist statement>" \
   -F "primaryCategory=Painting" \
   -F "secondaryCategory=Illustration" \
   -F "productDescription=Original paintings and prints" \
@@ -221,7 +222,7 @@ form.set("appliedBefore", "No");
 form.set("brandName", "Aria Studio");
 form.set("website", "https://ariastudio.com");   // "N/A" if none
 form.set("instagram", "@ariastudio");
-form.set("bio", bioText);                         // up to 10000 chars
+form.set("bio", bioText);
 form.set("primaryCategory", "Painting");
 form.set("secondaryCategory", "Illustration");
 form.set("productDescription", "Original paintings and prints");

@@ -61,14 +61,15 @@ describe("ArtistFieldsSchema", () => {
     expect(result.success && result.data.additionalNotes).toBeUndefined();
   });
 
-  it("caps the bio at 10,000 characters", () => {
+  it("does not cap the length of free-text fields", () => {
+    const huge = "a".repeat(50_000);
     expect(
-      ArtistFieldsSchema.safeParse({ ...valid, bio: "a".repeat(10_000) })
-        .success,
+      ArtistFieldsSchema.safeParse({
+        ...valid,
+        bio: huge,
+        productDescription: huge,
+        additionalNotes: huge,
+      }).success,
     ).toBe(true);
-    expect(
-      ArtistFieldsSchema.safeParse({ ...valid, bio: "a".repeat(10_001) })
-        .success,
-    ).toBe(false);
   });
 });
