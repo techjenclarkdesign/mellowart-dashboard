@@ -38,7 +38,7 @@ All sent as `multipart/form-data` parts.
 | `brandName` | ✅ | 1–200 chars |
 | `website` | ✅ | 1–300 chars (send `N/A` if none) |
 | `instagram` | ✅ | 1–120 chars (e.g. `@brand`) |
-| `bio` | ✅ | 1–5000 chars **and 200–400 words** |
+| `bio` | ✅ | 1–10000 chars |
 | `primaryCategory` | ✅ | 1–100 chars |
 | `secondaryCategory` | ✅ | 1–100 chars |
 | `productDescription` | ✅ | 1–2000 chars |
@@ -72,7 +72,7 @@ integration has.
 | `buddyBrandName` | `buddy-brand-name` | `secondBrandName` | 1–200 chars |
 | `buddyWebsite` | `buddy-website` | `secondWebsite` | 1–300 chars |
 | `buddyInstagram` | `buddy-instagram` | `secondInstagram` | 1–120 chars |
-| `buddyBio` | `buddy-artist-bio` | `secondBio` | 1–5000 chars (no word-count check) |
+| `buddyBio` | `buddy-artist-bio` | `secondBio` | 1–5000 chars |
 | `buddyPrimaryCategory` | `buddy-category-01` | `secondPrimaryCategory` | 1–100 chars |
 | `buddySecondaryCategory` | `buddy-category-02` | `secondSecondaryCategory` | 1–100 chars |
 | `buddyProductDescription` | `buddy-product-info` | `secondProductDescription` | 1–2000 chars |
@@ -81,8 +81,7 @@ The buddy "confirm email" (`buddy-email-02`) is a client-side check only — do
 not send it; it is never stored.
 
 Notes:
-- `bio` has **two** checks: a character cap (≤5000) and a **word count of
-  200–400 words** (words = whitespace-separated tokens). Both must pass.
+- `bio` is capped at **10000 characters**.
 - The three consent flags are mandatory and must be truthy. Accepted truthy
   strings: `true`, `on`, `1`, `yes` (case-insensitive). Anything else counts as
   `false` and the request is rejected.
@@ -154,7 +153,6 @@ on the invoice and in confirmation/approval/rejection emails.
 | `400` | `{ "error": "Expected multipart/form-data" }` | Body wasn't multipart. |
 | `422` | `{ "error": "Email addresses do not match" }` | `confirmEmail` sent but ≠ `email`. |
 | `422` | `{ "error": "Validation failed", "issues": { ... } }` | Text fields failed zod validation. `issues` is a zod flatten (`formErrors` + `fieldErrors`). |
-| `422` | `{ "error": "Bio must be 200–400 words" }` | Bio word count out of range. |
 | `422` | `{ "error": "A portfolio document is required" }` | Missing/empty `portfolio`. |
 | `422` | `{ "error": "<filename>: Unsupported file type: <type> (PDF or image only)" }` | A file failed the type/size/empty check. |
 | `405` | `{ "error": "Method not allowed" }` | Used a method other than POST. |
@@ -172,7 +170,7 @@ curl -X POST https://mellow-cf.mellowartmarket.workers.dev/api/submit \
   -F "brandName=Aria Studio" \
   -F "website=https://ariastudio.com" \
   -F "instagram=@ariastudio" \
-  -F "bio=<200-400 word bio here>" \
+  -F "bio=<bio here, up to 10000 chars>" \
   -F "primaryCategory=Painting" \
   -F "secondaryCategory=Illustration" \
   -F "productDescription=Original paintings and prints" \
@@ -223,7 +221,7 @@ form.set("appliedBefore", "No");
 form.set("brandName", "Aria Studio");
 form.set("website", "https://ariastudio.com");   // "N/A" if none
 form.set("instagram", "@ariastudio");
-form.set("bio", bioText);                         // 200–400 words
+form.set("bio", bioText);                         // up to 10000 chars
 form.set("primaryCategory", "Painting");
 form.set("secondaryCategory", "Illustration");
 form.set("productDescription", "Original paintings and prints");

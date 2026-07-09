@@ -4,9 +4,6 @@ import type { Route } from "./+types/api.submit";
 import {
   ALLOWED_DOC_TYPES,
   ArtistFieldsSchema,
-  BIO_MAX_WORDS,
-  BIO_MIN_WORDS,
-  isBioWordCountValid,
   MAX_FILE_BYTES,
 } from "~/lib/artist";
 import { findEventBySlug } from "~/lib/events.server";
@@ -199,10 +196,6 @@ export async function action({ request }: Route.ActionArgs) {
   });
   if (!parsed.success) {
     return bad(422, "Validation failed", parsed.error.flatten());
-  }
-
-  if (!isBioWordCountValid(parsed.data.bio)) {
-    return bad(422, `Bio must be ${BIO_MIN_WORDS}–${BIO_MAX_WORDS} words`);
   }
 
   // Files: a single required portfolio document + an optional insurance cert.

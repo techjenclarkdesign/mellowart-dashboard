@@ -18,7 +18,7 @@ export const ArtistFieldsSchema = z.object({
   brandName: z.string().trim().min(1).max(200),
   website: z.string().trim().min(1).max(300),
   instagram: z.string().trim().min(1).max(120),
-  bio: z.string().trim().min(1).max(5000),
+  bio: z.string().trim().min(1).max(10_000),
   primaryCategory: z.string().trim().min(1).max(100),
   secondaryCategory: z.string().trim().min(1).max(100),
   productDescription: z.string().trim().min(1).max(2000),
@@ -49,18 +49,6 @@ export const ArtistFieldsSchema = z.object({
 });
 
 export type ArtistFields = z.infer<typeof ArtistFieldsSchema>;
-
-export const BIO_MIN_WORDS = 200;
-export const BIO_MAX_WORDS = 400;
-
-export function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-export function isBioWordCountValid(bio: string): boolean {
-  const n = wordCount(bio);
-  return n >= BIO_MIN_WORDS && n <= BIO_MAX_WORDS;
-}
 
 // File upload constraints. The portfolio is a single 1-page A4 document and the
 // insurance certificate is an optional single document — both may be a PDF or an

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ArtistFieldsSchema, isBioWordCountValid, wordCount } from "./artist";
+import { ArtistFieldsSchema } from "./artist";
 
 const valid = {
   firstName: "Aria",
@@ -60,19 +60,15 @@ describe("ArtistFieldsSchema", () => {
     const result = ArtistFieldsSchema.safeParse(valid);
     expect(result.success && result.data.additionalNotes).toBeUndefined();
   });
-});
 
-describe("bio word count", () => {
-  it("counts words ignoring extra whitespace", () => {
-    expect(wordCount("one two three")).toBe(3);
-    expect(wordCount("  spaced   out  ")).toBe(2);
-  });
-
-  it("enforces the 200–400 word range", () => {
-    const words = (n: number) => Array(n).fill("w").join(" ");
-    expect(isBioWordCountValid(words(199))).toBe(false);
-    expect(isBioWordCountValid(words(200))).toBe(true);
-    expect(isBioWordCountValid(words(400))).toBe(true);
-    expect(isBioWordCountValid(words(401))).toBe(false);
+  it("caps the bio at 10,000 characters", () => {
+    expect(
+      ArtistFieldsSchema.safeParse({ ...valid, bio: "a".repeat(10_000) })
+        .success,
+    ).toBe(true);
+    expect(
+      ArtistFieldsSchema.safeParse({ ...valid, bio: "a".repeat(10_001) })
+        .success,
+    ).toBe(false);
   });
 });
