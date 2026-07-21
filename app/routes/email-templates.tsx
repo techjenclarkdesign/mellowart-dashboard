@@ -22,6 +22,12 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
@@ -435,20 +441,20 @@ function TemplateEditor({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select onValueChange={(v) => addBlock(v as BlockType)} value="">
-            <SelectTrigger className="w-[200px]">
-              <span className="flex items-center gap-2 text-sm">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="w-[200px] justify-start">
                 <Plus className="size-4" /> Add block
-              </span>
-            </SelectTrigger>
-            <SelectContent>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[200px]">
               {BLOCK_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
+                <DropdownMenuItem key={t} onSelect={() => addBlock(t)}>
                   {BLOCK_LABELS[t]}
-                </SelectItem>
+                </DropdownMenuItem>
               ))}
-            </SelectContent>
-          </Select>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="ghost"
             size="sm"

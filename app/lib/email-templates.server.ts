@@ -80,12 +80,12 @@ function renderSummary(
       const last = i === block.rows.length - 1;
       const border = last ? "" : "border-bottom:1px solid #F0EBE3;";
       if (!r.label.trim()) {
-        return `<div style="padding:8px 0;font-size:14px;color:#2C2422;line-height:1.6;white-space:pre-wrap;${border}">${interpolateHtml(r.value, ctx)}</div>`;
+        return `<tr><td colspan="2" style="padding:8px 0;font-size:14px;color:#2C2422;line-height:1.6;white-space:pre-wrap;${border}">${interpolateHtml(r.value, ctx)}</td></tr>`;
       }
-      return `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-size:14px;${border}"><span style="color:#7A6E6C">${interpolateHtml(r.label, ctx)}</span><span style="font-weight:500;color:#2C2422;text-align:right">${interpolateHtml(r.value, ctx)}</span></div>`;
+      return `<tr><td style="padding:8px 0;font-size:14px;color:#7A6E6C;vertical-align:top;${border}">${interpolateHtml(r.label, ctx)}</td><td style="padding:8px 0 8px 16px;font-size:14px;font-weight:500;color:#2C2422;text-align:right;vertical-align:top;${border}">${interpolateHtml(r.value, ctx)}</td></tr>`;
     })
     .join("");
-  return `<div style="${PAD}">${label}<div style="background:${br.headerBg};border:1.5px solid #F0EBE3;border-radius:12px;padding:8px 20px">${rows}</div></div>`;
+  return `<div style="${PAD}">${label}<div style="background:${br.headerBg};border:1.5px solid #F0EBE3;border-radius:12px;padding:8px 20px"><table style="width:100%;border-collapse:collapse">${rows}</table></div></div>`;
 }
 
 function renderBank(br: EmailBranding, ctx: Record<string, string>): string {
